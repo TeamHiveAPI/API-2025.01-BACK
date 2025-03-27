@@ -2,6 +2,11 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
 
+class UsuarioCreateInput(BaseModel):
+    nome: str
+    email: EmailStr
+    senha: str
+
 class UsuarioCreate(BaseModel):
     nome: str
     email: EmailStr

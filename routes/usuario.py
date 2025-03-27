@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Usuario
-from schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
+from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioUpdate
 
 router = APIRouter(prefix="/usuarios", tags=["usuários"])
-
 @router.post("/", response_model=UsuarioResponse)
-def create_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
-    db_usuario = Usuario(**usuario.dict())
+def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_db)):
+    usuario_dict = usuario_input.dict()
+    usuario_dict["nivel_acesso"] = "ADMINISTRADOR"
+    usuario_dict["data_criacao"] = datetime.now()
+
+    db_usuario = Usuario(**usuario_dict)
     db.add(db_usuario)
     db.commit()
     db.refresh(db_usuario)
