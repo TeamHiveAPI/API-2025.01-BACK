@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import create_tables
 from contextlib import asynccontextmanager
 import models
-from routes import parametro, tipo_parametro
+from database import create_tables
+from routes import estacoes, parametro, tipo_parametro
 
 # Definindo o manipulador de ciclo de vida
 @asynccontextmanager
@@ -32,6 +32,8 @@ app.add_middleware(
     allow_headers=["*"],           # Permite todos os cabeçalhos
 )
 
+# Inclusão das rotas
+app.include_router(estacoes.router)
 app.include_router(parametro.router)
 app.include_router(tipo_parametro.router)
 
