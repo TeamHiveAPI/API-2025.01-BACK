@@ -1,6 +1,7 @@
 from pydantic import BaseModel
-from enum import Enum
+from typing import List, Optional
 from datetime import date
+from enum import Enum
 
 class StatusEstacao(str, Enum):
     ativa = "ativa"
@@ -17,6 +18,7 @@ class EstacaoCreate(BaseModel):
     longitude: float
     data_instalacao: date
     status: StatusEstacao
+    sensores: Optional[List[int]] = []  # IDs dos sensores
 
 class EstacaoResponse(EstacaoCreate):
     id: int

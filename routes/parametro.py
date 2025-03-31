@@ -2,11 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Parametro
-from schemas.parametro import (
-    ParametroCreate, 
-    ParametroResponse, 
-    ParametroUpdate,
-)
+from schemas.parametro import ParametroCreate, ParametroResponse, ParametroUpdate
+from typing import List
 
 router = APIRouter(prefix="/parametros", tags=["parâmetros"])
 
@@ -25,14 +22,11 @@ def create_parametro(parametro: ParametroCreate, db: Session = Depends(get_db)) 
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/", response_model=list[ParametroResponse])
-def list_all_parametros(db: Session = Depends(get_db)) -> list[ParametroResponse]:
-    parametros = []
+@router.get("/", response_model=List[ParametroResponse])
+def list_all_parametros(db: Session = Depends(get_db)) -> List[ParametroResponse]:
     try:
         db_parametros = db.query(Parametro).all()
-        for db_parametro in db_parametros:
-            parametros.append(ParametroResponse.from_orm(db_parametro))
-        return parametros
+        return [ParametroResponse.from_orm(db_parametro) for db_parametro in db_parametros]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -55,7 +49,7 @@ def update_parametro(parametro_id: int, parametro: ParametroUpdate, db: Session 
         
         if parametro.nome is not None:
             db_parametro_by_nome = db.query(Parametro).filter(Parametro.nome == parametro.nome).first()
-            if db_parametro_by_nome:
+            if db_parametro_by_nome and db_parametro_by_nome.id != parametro_id:
                 raise HTTPException(status_code=400, detail="Parâmetro já existe com este nome.")
 
         for field, value in parametro.dict(exclude_unset=True).items():
