@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from database import Base
 import enum
 
@@ -27,6 +27,13 @@ class Estacao(Base):
     data_instalacao = Column(Date)
     status = Column(Enum(StatusEstacao))
 
+    # Relacionamento com sensores (parâmetros)
+    parametros = relationship(
+        "Parametro",
+        secondary="estacao_parametros",
+        back_populates="estacoes"
+    )
+
 # Tabela: tipo_parametros
 class TipoParametro(Base):
     __tablename__ = "tipo_parametros"
@@ -34,7 +41,7 @@ class TipoParametro(Base):
     nome = Column(String(50), index=True)
     descricao = Column(String)
 
-# Tabela: parametros
+# Tabela: parametros (sensores)
 class Parametro(Base):
     __tablename__ = "parametros"
     id = Column(Integer, primary_key=True, index=True)
@@ -45,6 +52,20 @@ class Parametro(Base):
     fator_conversao = Column(Float)
     offset = Column(Float)
     tipo_parametro_id = Column(Integer, ForeignKey("tipo_parametros.id"))
+
+    # Relacionamento com estações
+    estacoes = relationship(
+        "Estacao",
+        secondary="estacao_parametros",
+        back_populates="parametros"
+    )
+
+# Tabela associativa para vincular estações e parâmetros
+class EstacaoParametro(Base):
+    __tablename__ = "estacao_parametros"
+    id = Column(Integer, primary_key=True, index=True)
+    estacao_id = Column(Integer, ForeignKey("estacao.id"))
+    parametro_id = Column(Integer, ForeignKey("parametros.id"))
 
 # Tabela: alertas_definidos
 class AlertaDefinido(Base):
