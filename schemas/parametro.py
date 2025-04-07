@@ -12,6 +12,7 @@ class ParametroCreate(BaseModel):
 
 class ParametroResponse(ParametroCreate):
     id: int
+    estacao_nome: Optional[str]
 
     class Config:
         from_attributes = True
