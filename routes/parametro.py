@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Parametro
+from models import Parametro, Estacao, EstacaoParametro
 from schemas.parametro import ParametroCreate, ParametroResponse, ParametroUpdate
 from typing import List
 
@@ -26,7 +26,22 @@ def create_parametro(parametro: ParametroCreate, db: Session = Depends(get_db)) 
 def list_all_parametros(db: Session = Depends(get_db)) -> List[ParametroResponse]:
     try:
         db_parametros = db.query(Parametro).all()
-        return [ParametroResponse.from_orm(db_parametro) for db_parametro in db_parametros]
+        if not db_parametros:
+            return []
+        parametros = []
+        for db_parametro in db_parametros:
+            estacao_parametro = db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id).first()
+            estacao_nome = None
+            if estacao_parametro:
+                estacao = db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id).first()
+                if estacao:
+                    estacao_nome = estacao.nome
+            parametro = ParametroResponse(
+                **db_parametro.__dict__,
+                estacao_nome=estacao_nome
+            )
+            parametros.append(parametro)
+        return parametros
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
