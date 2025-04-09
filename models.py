@@ -74,6 +74,7 @@ class AlertaDefinido(Base):
     estacao_id = Column(Integer, ForeignKey("estacao.id"))
     parametro_id = Column(Integer, ForeignKey("parametros.id"))
     condicao = Column(String(50))
+    num_condicao = Column(Float)  
     mensagem = Column(String)
     ativo = Column(Boolean, default=True)
 
