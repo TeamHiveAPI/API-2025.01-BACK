@@ -40,6 +40,7 @@ def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
         # Inclui os IDs dos sensores na resposta
         return EstacaoResponse(
             id=db_estacao.id,
+            uid=db_estacao.uid,
             nome=db_estacao.nome,
             cep=db_estacao.cep,
             rua=db_estacao.rua,
@@ -92,6 +93,7 @@ def update_estacao(estacao_id: int, estacao: EstacaoUpdate, db: Session = Depend
         db.refresh(db_estacao)
         return EstacaoResponse(
             id=db_estacao.id,
+            uid=estacao.uid,
             nome=db_estacao.nome,
             cep=db_estacao.cep,
             rua=db_estacao.rua,
@@ -123,6 +125,7 @@ def read_estacoes(db: Session = Depends(get_db)):
         for estacao in estacoes:
             estacao_data = EstacaoResponse(
                 id=estacao.id,
+                uid=estacao.uid,
                 nome=estacao.nome,
                 cep=estacao.cep,
                 rua=estacao.rua,
