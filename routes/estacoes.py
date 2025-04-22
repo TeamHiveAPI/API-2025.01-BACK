@@ -93,7 +93,7 @@ def update_estacao(estacao_id: int, estacao: EstacaoUpdate, db: Session = Depend
         db.refresh(db_estacao)
         return EstacaoResponse(
             id=db_estacao.id,
-            uid=estacao.uid,
+            uid=db_estacao.uid,
             nome=db_estacao.nome,
             cep=db_estacao.cep,
             rua=db_estacao.rua,

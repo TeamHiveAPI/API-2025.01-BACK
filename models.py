@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey, TIMESTAMP
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
@@ -97,7 +97,7 @@ class Medida(Base):
     estacao_id = Column(Integer, ForeignKey("estacao.id"))
     parametro_id = Column(Integer, ForeignKey("parametros.id"))
     valor = Column(Float)
-    data_hora = Column(DateTime)
+    data_hora = Column(TIMESTAMP)
 
 # Tabela: usuarios
 class Usuario(Base):
