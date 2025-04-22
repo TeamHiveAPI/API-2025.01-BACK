@@ -16,6 +16,8 @@ Base = declarative_base()
 
 # Função para criar as tabelas
 def create_tables():
+    Base.metadata.drop_all(bind=engine)
+
     Base.metadata.create_all(bind=engine)
 
 # Função para gerenciar a sessão do banco
