@@ -35,12 +35,17 @@ def list_usuarios(db: Session = Depends(get_db)):
         for usuario in db_usuarios
     ]
 
-@router.get("/me", response_model=UsuarioResponse)
+@router.get("/me", response_model=UsuarioPublicResponse)
 async def read_current_user(
     current_user: UsuarioModel = Depends(get_current_user)
 ):
-    """Get current user's information"""
-    return current_user
+    return UsuarioPublicResponse(
+        id=current_user.id,
+        nome=current_user.nome,
+        email=current_user.email,
+        nivel_acesso=current_user.nivel_acesso,
+        data_criacao=current_user.data_criacao
+    )
 
 @router.get("/{usuario_id}", response_model=UsuarioPublicResponse)
 def get_usuario(usuario_id: int, db: Session = Depends(get_db)):

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import models
 from database import create_tables
-from scripts.create_test_user_and_token import create_test_user_and_token
+from scripts.create_test_user_and_token import CreateTestUserAndToken
 from routes import (
     estacoes, 
     usuario, 
@@ -17,7 +17,7 @@ from routes import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
-    create_test_user_and_token()
+    CreateTestUserAndToken().execute()
     yield
 
 app = FastAPI(
