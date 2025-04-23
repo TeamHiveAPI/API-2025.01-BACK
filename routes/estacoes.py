@@ -164,3 +164,35 @@ def delete_estacao(estacao_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/uid/{uid}", response_model=EstacaoResponse)
+def read_estacao_by_uid(uid: str, db: Session = Depends(get_db)):
+    try:
+        estacao = db.query(Estacao).filter(Estacao.uid == uid).first()
+        if not estacao:
+            raise HTTPException(status_code=404, detail="Estação não encontrada")
+        
+        return EstacaoResponse(
+            id=estacao.id,
+            uid=estacao.uid,
+            nome=estacao.nome,
+            cep=estacao.cep,
+            rua=estacao.rua,
+            bairro=estacao.bairro,
+            cidade=estacao.cidade,
+            numero=estacao.numero,
+            latitude=estacao.latitude,
+            longitude=estacao.longitude,
+            data_instalacao=estacao.data_instalacao,
+            status=estacao.status,
+            sensores=[
+                {
+                    "id": sensor.id,
+                    "nome": sensor.nome,
+                    "unidade": sensor.unidade
+                }
+                for sensor in estacao.parametros
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

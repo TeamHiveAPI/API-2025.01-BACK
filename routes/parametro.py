@@ -51,7 +51,19 @@ def get_parametro_by_id(parametro_id: int, db: Session = Depends(get_db)) -> Par
         db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
         if not db_parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado.")
-        return ParametroResponse.from_orm(db_parametro)
+        
+        # Busca o nome da estação
+        estacao_parametro = db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id).first()
+        estacao_nome = None
+        if estacao_parametro:
+            estacao = db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id).first()
+            if estacao:
+                estacao_nome = estacao.nome
+
+        return ParametroResponse(
+            **db_parametro.__dict__,
+            estacao_nome=estacao_nome
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

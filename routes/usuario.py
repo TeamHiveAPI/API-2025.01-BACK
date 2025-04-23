@@ -7,7 +7,7 @@ from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioUpdate, 
 from core.security import get_current_user, get_password_hash, require_user_nivel
 from models import Usuario as UsuarioModel
 
-router = APIRouter(prefix="/usuarios", tags=["usuários"])
+router = APIRouter(prefix="/usuarios", tags=["usuários"], dependencies=[Depends(get_current_user)])
 @router.post("/", response_model=UsuarioResponse)
 def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_db)):
     usuario_dict = usuario_input.dict()
