@@ -4,11 +4,17 @@ from database import get_db
 from models import Estacao, EstacaoParametro, Parametro
 from schemas.estacao import EstacaoCreate, EstacaoResponse, EstacaoUpdate
 from typing import List
+from core.security import get_current_user
+from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/estacoes", tags=["estações"])
 
 @router.post("/", response_model=EstacaoResponse)
-def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
+def create_estacao(
+    estacao: EstacaoCreate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         # Cria a estação
         db_estacao = Estacao(
@@ -64,7 +70,12 @@ def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{estacao_id}", response_model=EstacaoResponse)
-def update_estacao(estacao_id: int, estacao: EstacaoUpdate, db: Session = Depends(get_db)):
+def update_estacao(
+    estacao_id: int, 
+    estacao: EstacaoUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
         if not db_estacao:
@@ -148,7 +159,11 @@ def read_estacoes(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{estacao_id}", status_code=204)
-def delete_estacao(estacao_id: int, db: Session = Depends(get_db)):
+def delete_estacao(
+    estacao_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
         if not db_estacao:
