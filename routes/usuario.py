@@ -22,7 +22,10 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
     return db_usuario
 
 @router.get("/", response_model=list[UsuarioPublicResponse])
-def list_usuarios(db: Session = Depends(get_db)):
+def list_usuarios(
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuarios = db.query(Usuario).all()
     return [
         UsuarioPublicResponse(
@@ -37,7 +40,7 @@ def list_usuarios(db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UsuarioPublicResponse)
 async def read_current_user(
-    current_user: UsuarioModel = Depends(get_current_user)
+    current_user: UsuarioModel = Depends(get_current_user),
 ):
     return UsuarioPublicResponse(
         id=current_user.id,
@@ -48,7 +51,10 @@ async def read_current_user(
     )
 
 @router.get("/{usuario_id}", response_model=UsuarioPublicResponse)
-def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def get_usuario(
+    usuario_id: int, db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -61,7 +67,11 @@ def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/{usuario_id}", response_model=UsuarioResponse)
-def update_usuario(usuario_id: int, usuario: UsuarioUpdate, db: Session = Depends(get_db)):
+def update_usuario(
+    usuario_id: int, usuario: UsuarioUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -78,7 +88,11 @@ def update_usuario(usuario_id: int, usuario: UsuarioUpdate, db: Session = Depend
     return db_usuario
 
 @router.delete("/{usuario_id}")
-def delete_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def delete_usuario(
+    usuario_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
