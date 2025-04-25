@@ -31,7 +31,6 @@ def create_parametro(
 @router.get("/", response_model=List[ParametroResponse])
 def list_all_parametros(
     db: Session = Depends(get_db),
-    current_user: UsuarioModel = Depends(get_current_user),
 ) -> List[ParametroResponse]:
     try:
         db_parametros = db.query(Parametro).all()
