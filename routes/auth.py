@@ -34,7 +34,8 @@ def login(
         data={
             "sub": user.email,
             "user_nivel": user.nivel_acesso,
-            "user_id": user.id
+            "user_id": user.id,
+            "user_nome": user.nome
         },
         expires_delta=access_token_expires
     )
@@ -44,5 +45,6 @@ def login(
         "token_type": "bearer",
         "user_nivel": user.nivel_acesso,
         "user_email": user.email,
-        "user_id": user.id
+        "user_id": user.id,
+        "user_nome": user.nome
     }
