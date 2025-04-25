@@ -6,3 +6,4 @@ class Token(BaseModel):
     user_email: str
     user_nivel: str
     user_id: int
+    user_nome: str 

@@ -7,8 +7,13 @@ from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioUpdate, 
 from core.security import get_current_user, get_password_hash, require_user_nivel
 from models import Usuario as UsuarioModel
 
-router = APIRouter(prefix="/usuarios", tags=["usuários"], dependencies=[Depends(get_current_user)])
-@router.post("/", response_model=UsuarioResponse)
+from datetime import timedelta
+from core.config import settings
+from core.security import create_access_token
+from schemas.token import Token
+
+router = APIRouter(prefix="/usuarios", tags=["usuários"])
+@router.post("/", response_model=Token)
 def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_db)):
     usuario_dict = usuario_input.dict()
     usuario_dict["nivel_acesso"] = "ADMINISTRADOR"
@@ -19,10 +24,31 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
     db.add(db_usuario)
     db.commit()
     db.refresh(db_usuario)
-    return db_usuario
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={
+            "sub": db_usuario.email,
+            "user_nivel": db_usuario.nivel_acesso,
+            "user_id": db_usuario.id,
+        },
+        expires_delta=access_token_expires
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_email": db_usuario.email,
+        "user_nivel": db_usuario.nivel_acesso,
+        "user_id": db_usuario.id,
+        "user_nome": db_usuario.nome
+    }
 
 @router.get("/", response_model=list[UsuarioPublicResponse])
-def list_usuarios(db: Session = Depends(get_db)):
+def list_usuarios(
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuarios = db.query(Usuario).all()
     return [
         UsuarioPublicResponse(
@@ -35,15 +61,23 @@ def list_usuarios(db: Session = Depends(get_db)):
         for usuario in db_usuarios
     ]
 
-@router.get("/me", response_model=UsuarioResponse)
+@router.get("/me", response_model=UsuarioPublicResponse)
 async def read_current_user(
-    current_user: UsuarioModel = Depends(get_current_user)
+    current_user: UsuarioModel = Depends(get_current_user),
 ):
-    """Get current user's information"""
-    return current_user
+    return UsuarioPublicResponse(
+        id=current_user.id,
+        nome=current_user.nome,
+        email=current_user.email,
+        nivel_acesso=current_user.nivel_acesso,
+        data_criacao=current_user.data_criacao
+    )
 
 @router.get("/{usuario_id}", response_model=UsuarioPublicResponse)
-def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def get_usuario(
+    usuario_id: int, db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -56,7 +90,11 @@ def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/{usuario_id}", response_model=UsuarioResponse)
-def update_usuario(usuario_id: int, usuario: UsuarioUpdate, db: Session = Depends(get_db)):
+def update_usuario(
+    usuario_id: int, usuario: UsuarioUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -73,11 +111,19 @@ def update_usuario(usuario_id: int, usuario: UsuarioUpdate, db: Session = Depend
     return db_usuario
 
 @router.delete("/{usuario_id}")
-def delete_usuario(usuario_id: int, db: Session = Depends(get_db)):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+def delete_usuario(
+    usuario_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
+    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.id == usuario_id).first()
+    
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    
+
+    if db_usuario.id == current_user.id:
+        raise HTTPException(status_code=403, detail="Você não pode se excluir.")
+
     db.delete(db_usuario)
     db.commit()
     return {"message": "Usuário deletado com sucesso"}
