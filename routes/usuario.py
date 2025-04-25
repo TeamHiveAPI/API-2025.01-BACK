@@ -116,10 +116,14 @@ def delete_usuario(
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.id == usuario_id).first()
+    
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    
+
+    if db_usuario.id == current_user.id:
+        raise HTTPException(status_code=403, detail="Você não pode se excluir.")
+
     db.delete(db_usuario)
     db.commit()
     return {"message": "Usuário deletado com sucesso"}
