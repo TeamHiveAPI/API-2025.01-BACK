@@ -85,6 +85,12 @@ class Alerta(Base):
     alerta_definido_id = Column(Integer, ForeignKey("alertas_definidos.id"))
     data_hora = Column(DateTime)
     valor_medido = Column(Float)
+    titulo = Column(String(255))
+    descricaoAlerta = Column(String(255))
+    estacao = Column(String(255))
+    coordenadas = Column(String(50))
+    tempoFim = Column(DateTime, nullable=True)
+    expandido = Column(Boolean, default=False)
 
 # Tabela: medidas
 class Medida(Base):
