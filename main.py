@@ -14,6 +14,7 @@ from routes import (
     auth,
     medida,
     dashboard,
+    tempo_alerta
 )
 
 @asynccontextmanager
@@ -32,7 +33,7 @@ app = FastAPI(
 # Configuração do CORS
 origins = [
     "http://localhost:5173",  # Frontend do React
-    "http://localhost:8001"  #  BD
+    "http://localhost:8001"   #  BD
 ]
 
 app.add_middleware(
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 
 # Inclusão das rotas
+
 app.include_router(estacoes.router)
 app.include_router(parametro.router)
 app.include_router(tipo_parametro.router)
@@ -53,6 +55,7 @@ app.include_router(alerta.router)
 app.include_router(alerta_definido.router)
 app.include_router(dashboard.router)
 app.include_router(medida.router)
+app.include_router(tempo_alerta.router)
 
 @app.get("/")
 def read_root():
