@@ -12,7 +12,8 @@ from routes import (
     parametro,
     tipo_parametro, 
     auth,
-    medida
+    medida,
+    dashboard,
 )
 
 @asynccontextmanager
@@ -50,6 +51,7 @@ app.include_router(auth.router)
 app.include_router(usuario.router)
 app.include_router(alerta.router)
 app.include_router(alerta_definido.router)
+app.include_router(dashboard.router)
 app.include_router(medida.router)
 
 @app.get("/")
