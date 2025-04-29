@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import models
 from database import create_tables
-from routes import estacoes, usuario, alerta, alerta_definido, parametro, tipo_parametro, parametro, tipo_parametro
+from routes import estacoes, usuario, alerta, alerta_definido, parametro, tipo_parametro, parametro, tipo_parametro, tempo_alerta
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +35,7 @@ app.include_router(estacoes.router)
 app.include_router(parametro.router)
 app.include_router(tipo_parametro.router)
 
+
 # Configuração do CORS
 origins = [
     "http://localhost:5173",  # Frontend do React
@@ -54,6 +55,7 @@ app.include_router(alerta.router)
 app.include_router(alerta_definido.router)
 app.include_router(parametro.router)
 app.include_router(tipo_parametro.router)
+app.include_router(tempo_alerta.router)
 
 @app.get("/")
 def read_root():
