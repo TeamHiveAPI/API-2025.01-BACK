@@ -7,11 +7,17 @@ from schemas.tipo_parametro import (
     TipoParametroResponse, 
     TipoParametroUpdate,
 )
+from core.security import get_current_user
+from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/tipo_parametros", tags=["tipo parâmetros"])
 
 @router.post("/", response_model=int)
-def create_tipo_parametro(tipo_parametro: TipoParametroCreate, db: Session = Depends(get_db)) -> int:
+def create_tipo_parametro(
+    tipo_parametro: TipoParametroCreate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> int:
     try:
         new_tipo_parametro = TipoParametro(**tipo_parametro.dict())
         db_tipo_parametro = db.query(TipoParametro).filter(TipoParametro.nome == new_tipo_parametro.nome).first()
@@ -26,7 +32,10 @@ def create_tipo_parametro(tipo_parametro: TipoParametroCreate, db: Session = Dep
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=list[TipoParametroResponse])
-def list_all_tipo_parametros(db: Session = Depends(get_db)) -> list[TipoParametroResponse]:
+def list_all_tipo_parametros(
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> list[TipoParametroResponse]:
     tipo_parametros = []
     try:
         db_tipo_parametros = db.query(TipoParametro).all()
@@ -37,7 +46,11 @@ def list_all_tipo_parametros(db: Session = Depends(get_db)) -> list[TipoParametr
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{tipo_parametro_id}", response_model=TipoParametroResponse)
-def get_tipo_parametro_by_id(tipo_parametro_id: int, db: Session = Depends(get_db)) -> TipoParametroResponse:
+def get_tipo_parametro_by_id(
+    tipo_parametro_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> TipoParametroResponse:
     try:
         db_tipo_parametro = db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id).first()
         if not db_tipo_parametro:
@@ -47,7 +60,12 @@ def get_tipo_parametro_by_id(tipo_parametro_id: int, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{tipo_parametro_id}", response_model=dict)
-def update_tipo_parametro(tipo_parametro_id: int, tipo_parametro: TipoParametroUpdate, db: Session = Depends(get_db)) -> dict:
+def update_tipo_parametro(
+    tipo_parametro_id: int, 
+    tipo_parametro: TipoParametroUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> dict:
     try:
         db_tipo_parametro = db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id).first()
         if not db_tipo_parametro:
@@ -67,7 +85,11 @@ def update_tipo_parametro(tipo_parametro_id: int, tipo_parametro: TipoParametroU
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{tipo_parametro_id}", response_model=dict)
-def delete_tipo_parametro(tipo_parametro_id: int, db: Session = Depends(get_db)) -> dict:
+def delete_tipo_parametro(
+    tipo_parametro_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> dict:
     try:
         db_tipo_parametro = db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id).first()
         if not db_tipo_parametro:

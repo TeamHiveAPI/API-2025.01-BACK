@@ -1,13 +1,25 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from contextlib import asynccontextmanager
 import models
 from database import create_tables
-from routes import estacoes, usuario, alerta, alerta_definido, parametro, tipo_parametro, parametro, tipo_parametro, dashboard
+from scripts.create_test_user_and_token import CreateTestUserAndToken
+from routes import (
+    estacoes, 
+    usuario, 
+    alerta, 
+    alerta_definido, 
+    parametro,
+    tipo_parametro, 
+    auth,
+    medida,
+    dashboard,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
+    CreateTestUserAndToken().execute()
     yield
 
 app = FastAPI(
@@ -20,6 +32,7 @@ app = FastAPI(
 # Configuração do CORS
 origins = [
     "http://localhost:5173",  # Frontend do React
+    "http://localhost:8001"  #  BD
 ]
 
 app.add_middleware(
@@ -30,26 +43,16 @@ app.add_middleware(
     allow_headers=["*"],           # Permite todos os cabeçalhos
 )
 
-# Configuração do CORS
-origins = [
-    "http://localhost:5173",  # Frontend do React
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,         # Permite requisições do domínio listado
-    allow_credentials=True,        # Permite envio de cookies, se necessário
-    allow_methods=["*"],           # Permite todos os métodos (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],           # Permite todos os cabeçalhos
-)
-
+# Inclusão das rotas
 app.include_router(estacoes.router)
+app.include_router(parametro.router)
+app.include_router(tipo_parametro.router)
+app.include_router(auth.router)
 app.include_router(usuario.router)
 app.include_router(alerta.router)
 app.include_router(alerta_definido.router)
-app.include_router(parametro.router)
 app.include_router(dashboard.router)
-app.include_router(tipo_parametro.router)
+app.include_router(medida.router)
 
 @app.get("/")
 def read_root():

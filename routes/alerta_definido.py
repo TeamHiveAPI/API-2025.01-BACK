@@ -4,12 +4,18 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import AlertaDefinido, Estacao, Parametro, EstacaoParametro
 from schemas.alerta_definido import AlertaDefinidoCreate, AlertaDefinidoResponse, AlertaDefinidoUpdate
+from core.security import get_current_user
+from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/alertas-definidos", tags=["alertas definidos"])
 
 # Criar alerta definido
 @router.post("/", response_model=AlertaDefinidoResponse)
-def create_alerta_definido(alerta_definido: AlertaDefinidoCreate, db: Session = Depends(get_db)):
+def create_alerta_definido(
+    alerta_definido: AlertaDefinidoCreate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     # Verifica se a estação existe
     db_estacao = db.query(Estacao).filter(Estacao.id == alerta_definido.estacao_id).first()
     if not db_estacao:
@@ -47,7 +53,12 @@ def get_alerta_definido(alerta_definido_id: int, db: Session = Depends(get_db)):
 
 # Atualizar alerta definido específico por ID
 @router.put("/{alerta_definido_id}", response_model=AlertaDefinidoResponse)
-def update_alerta_definido(alerta_definido_id: int, alerta_definido: AlertaDefinidoUpdate, db: Session = Depends(get_db)):
+def update_alerta_definido(
+    alerta_definido_id: int, 
+    alerta_definido: AlertaDefinidoUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_alerta_definido = db.query(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id).first()
     if not db_alerta_definido:
         raise HTTPException(status_code=404, detail="Alerta definido não encontrado")
@@ -78,7 +89,11 @@ def update_alerta_definido(alerta_definido_id: int, alerta_definido: AlertaDefin
 
 # Deletar alerta definido específico por ID
 @router.delete("/{alerta_definido_id}")
-def delete_alerta_definido(alerta_definido_id: int, db: Session = Depends(get_db)):
+def delete_alerta_definido(
+    alerta_definido_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     db_alerta_definido = db.query(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id).first()
     if not db_alerta_definido:
         raise HTTPException(status_code=404, detail="Alerta definido não encontrado")

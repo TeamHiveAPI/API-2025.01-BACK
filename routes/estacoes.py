@@ -4,11 +4,17 @@ from database import get_db
 from models import Estacao, EstacaoParametro, Parametro
 from schemas.estacao import EstacaoCreate, EstacaoResponse, EstacaoUpdate
 from typing import List
+from core.security import get_current_user
+from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/estacoes", tags=["estações"])
 
 @router.post("/", response_model=EstacaoResponse)
-def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
+def create_estacao(
+    estacao: EstacaoCreate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         # Cria a estação
         db_estacao = Estacao(
@@ -40,6 +46,7 @@ def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
         # Inclui os IDs dos sensores na resposta
         return EstacaoResponse(
             id=db_estacao.id,
+            uid=db_estacao.uid,
             nome=db_estacao.nome,
             cep=db_estacao.cep,
             rua=db_estacao.rua,
@@ -64,7 +71,12 @@ def create_estacao(estacao: EstacaoCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{estacao_id}", response_model=EstacaoResponse)
-def update_estacao(estacao_id: int, estacao: EstacaoUpdate, db: Session = Depends(get_db)):
+def update_estacao(
+    estacao_id: int, 
+    estacao: EstacaoUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
         if not db_estacao:
@@ -92,6 +104,7 @@ def update_estacao(estacao_id: int, estacao: EstacaoUpdate, db: Session = Depend
         db.refresh(db_estacao)
         return EstacaoResponse(
             id=db_estacao.id,
+            uid=db_estacao.uid,
             nome=db_estacao.nome,
             cep=db_estacao.cep,
             rua=db_estacao.rua,
@@ -123,6 +136,7 @@ def read_estacoes(db: Session = Depends(get_db)):
         for estacao in estacoes:
             estacao_data = EstacaoResponse(
                 id=estacao.id,
+                uid=estacao.uid,
                 nome=estacao.nome,
                 cep=estacao.cep,
                 rua=estacao.rua,
@@ -148,7 +162,11 @@ def read_estacoes(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{estacao_id}", status_code=204)
-def delete_estacao(estacao_id: int, db: Session = Depends(get_db)):
+def delete_estacao(
+    estacao_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+):
     try:
         db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
         if not db_estacao:
@@ -160,4 +178,36 @@ def delete_estacao(estacao_id: int, db: Session = Depends(get_db)):
         return None
     except Exception as e:
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/uid/{uid}", response_model=EstacaoResponse)
+def read_estacao_by_uid(uid: str, db: Session = Depends(get_db)):
+    try:
+        estacao = db.query(Estacao).filter(Estacao.uid == uid).first()
+        if not estacao:
+            raise HTTPException(status_code=404, detail="Estação não encontrada")
+        
+        return EstacaoResponse(
+            id=estacao.id,
+            uid=estacao.uid,
+            nome=estacao.nome,
+            cep=estacao.cep,
+            rua=estacao.rua,
+            bairro=estacao.bairro,
+            cidade=estacao.cidade,
+            numero=estacao.numero,
+            latitude=estacao.latitude,
+            longitude=estacao.longitude,
+            data_instalacao=estacao.data_instalacao,
+            status=estacao.status,
+            sensores=[
+                {
+                    "id": sensor.id,
+                    "nome": sensor.nome,
+                    "unidade": sensor.unidade
+                }
+                for sensor in estacao.parametros
+            ]
+        )
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

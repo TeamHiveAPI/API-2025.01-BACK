@@ -14,6 +14,7 @@ class SensoresRelacionadosAEstacao(BaseModel):
 
 class EstacaoResponse(BaseModel):
     id: int
+    uid: str
     nome: str
     cep: str
     rua: str
@@ -30,6 +31,7 @@ class EstacaoResponse(BaseModel):
         orm_mode = True
 
 class EstacaoCreate(BaseModel):
+    
     nome: str
     cep: str
     rua: str

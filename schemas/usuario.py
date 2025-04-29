@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
@@ -19,6 +20,14 @@ class UsuarioResponse(UsuarioCreate):
 
     class Config:
         orm_mode = True
+        from_attributes = True
+
+class UsuarioPublicResponse(BaseModel):
+    id: int
+    nome: str
+    email: EmailStr
+    nivel_acesso: str
+    data_criacao: datetime
 
 class UsuarioUpdate(BaseModel):
     nome: Optional[str] = None
