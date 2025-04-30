@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey, TIMESTAMP, Text
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
@@ -89,8 +89,8 @@ class Alerta(Base):
     alerta_definido_id = Column(Integer, ForeignKey("alertas_definidos.id"))
     data_hora = Column(DateTime)
     valor_medido = Column(Float)
-    titulo = Column(String(255))
-    descricaoAlerta = Column(String(255))
+    titulo = Column(Text, nullable=False)
+    descricaoAlerta = Column(Text, nullable=False)
     estacao = Column(String(255))
     coordenadas = Column(String(50))
     tempoFim = Column(DateTime, nullable=True)

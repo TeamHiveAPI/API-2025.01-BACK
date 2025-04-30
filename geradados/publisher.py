@@ -18,7 +18,7 @@ def generate_test_data():
       - temp: temperatura (15-35°C)
     """
     return {
-       "uid": "4fc02475-47e1-4bda-bfe9-02294375983a",
+       "uid": "f74c9987-8a4d-44df-8aa4-e1da0a32881a",
        "unixtime": int(time.time()),
        "wind": round(random.uniform(0, 100), 2),
        "temp": round(random.uniform(15, 35), 2)
@@ -36,4 +36,4 @@ if __name__ == "__main__":
             port=MQTT_PORT
         )
         print(f"Publicado: {payload} no tópico {MQTT_TOPIC}")
-        time.sleep(5)
+        time.sleep(20)

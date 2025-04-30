@@ -1,4 +1,5 @@
 # routers/medida.py
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
@@ -11,117 +12,101 @@ from datetime import datetime
 
 router = APIRouter(prefix="/medidas", tags=["medidas"])
 
+# Configura um logger para capturar exceptions
+logger = logging.getLogger("medidas")
+# Se ainda não houver handler, adiciona um básico (stdout) — ajusta nível conforme desejado
+if not logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.setLevel(logging.DEBUG)
+
 def check_and_create_alertas(db: Session, medida: Medida, estacao: Estacao, parametro: Parametro):
-    """
-    Verifica se a medida aciona algum AlertaDefinido e cria Alertas se necessário.
-    """
-    # Busca alertas definidos para esta combinação de estação e parâmetro
     alertas_definidos = db.query(AlertaDefinido).filter(
         AlertaDefinido.estacao_id == medida.estacao_id,
         AlertaDefinido.parametro_id == medida.parametro_id
     ).all()
 
     for alerta_def in alertas_definidos:
-        # Verifica se existe um alerta ativo para este alerta_definido
-        alerta_ativo = db.query(Alerta).filter(
+        alertas_ativos = db.query(Alerta).filter(
             Alerta.alerta_definido_id == alerta_def.id,
-            Alerta.tempoFim == None
-        ).first()
+            Alerta.tempoFim.is_(None)
+        ).all()
 
-        triggered = False
-        condicao_texto = ""
+        # checa a condição
+        triggered = (
+            (alerta_def.condicao == 'menor' and medida.valor < alerta_def.num_condicao) or
+            (alerta_def.condicao == 'maior_igual' and medida.valor >= alerta_def.num_condicao) or
+            (alerta_def.condicao == 'maior_que' and medida.valor > alerta_def.num_condicao)
+        )
 
-        if alerta_def.condicao == 'menor' and medida.valor < alerta_def.num_condicao:
-            triggered = True
-            condicao_texto = f"abaixo do limite de {alerta_def.num_condicao}{parametro.unidade}"
-        elif alerta_def.condicao == 'maior_igual' and medida.valor >= alerta_def.num_condicao:
-            triggered = True
-            condicao_texto = f"igual ou acima do limite de {alerta_def.num_condicao}{parametro.unidade}"
-        elif alerta_def.condicao == 'maior_que' and medida.valor > alerta_def.num_condicao:
-            triggered = True
-            condicao_texto = f"acima do limite de {alerta_def.num_condicao}{parametro.unidade}"
+        if triggered:
+            if not alertas_ativos:
+                # --- aqui mudamos o título para o padrão curto ---
+                if alerta_def.condicao == 'menor':
+                    titulo = f"{parametro.nome} menor que {alerta_def.num_condicao}{parametro.unidade}"
+                elif alerta_def.condicao == 'maior_igual':
+                    titulo = f"{parametro.nome} maior ou igual a {alerta_def.num_condicao}{parametro.unidade}"
+                else:  # 'maior_que'
+                    titulo = f"{parametro.nome} maior que {alerta_def.num_condicao}{parametro.unidade}"
 
-        # Se não está mais em condição de alerta e existe um alerta ativo, finaliza o alerta
-        if not triggered and alerta_ativo:
-            alerta_ativo.tempoFim = medida.data_hora
-            db.commit()
-            continue
+                # --- e colocamos a mensagem longa em descricaoAlerta ---
+                descricao = alerta_def.mensagem
 
-        # Se está em condição de alerta e não existe alerta ativo, cria um novo
-        if triggered and not alerta_ativo:
-            titulo_alerta = getattr(alerta_def, 'nome_alerta', f"Alerta de {parametro.nome}")
-            
-            descricao = (f"{parametro.nome} registrou {medida.valor}{parametro.unidade} na estação '{estacao.nome}', "
-                         f"que está {condicao_texto}.")
+                novo_alerta = Alerta(
+                    alerta_definido_id=alerta_def.id,
+                    titulo=titulo,
+                    data_hora=medida.data_hora,
+                    valor_medido=medida.valor,
+                    descricaoAlerta=descricao,
+                    estacao=estacao.nome,
+                    coordenadas=f"[{estacao.latitude},{estacao.longitude}]",
+                    tempoFim=None
+                )
+                db.add(novo_alerta)
 
-            coordenadas_str = f"[{estacao.latitude},{estacao.longitude}]"
+        else:
+            # fecha todos os ativos
+            for a in alertas_ativos:
+                a.tempoFim = medida.data_hora
 
-            novo_alerta = Alerta(
-                alerta_definido_id=alerta_def.id,
-                titulo=titulo_alerta,
-                data_hora=medida.data_hora,
-                valor_medido=medida.valor,
-                descricaoAlerta=descricao,
-                estacao=estacao.nome,
-                coordenadas=coordenadas_str,
-                tempoFim=None
-            )
-            db.add(novo_alerta)
-            # O commit será feito fora da função, após todas as verificações
+    db.commit()
 
 @router.post("/", response_model=MedidaResponse)
 def create_medida(medida: MedidaCreate, db: Session = Depends(get_db)):
     try:
-        # Verifica se a estação existe
         estacao = db.query(Estacao).filter(Estacao.id == medida.estacao_id).first()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
 
-        # Verifica se o parâmetro existe
         parametro = db.query(Parametro).filter(Parametro.id == medida.parametro_id).first()
         if not parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
 
-        # **Importante**: Verifique se o sensor (parâmetro) está realmente associado a esta estação
-        # Isso já deve estar garantido pelo seu front-end ou lógica de negócio,
-        # mas uma verificação extra pode ser útil se necessário.
-        # assoc = db.query(EstacaoParametro).filter(
-        #     EstacaoParametro.estacao_id == medida.estacao_id,
-        #     EstacaoParametro.parametro_id == medida.parametro_id
-        # ).first()
-        # if not assoc:
-        #     raise HTTPException(status_code=400, detail="Sensor (parâmetro) não está associado a esta estação.")
-
-
-        # Cria a medida
         db_medida = Medida(
             estacao_id=medida.estacao_id,
             parametro_id=medida.parametro_id,
             valor=medida.valor,
-            # Garante que data_hora seja definida, use 'now' se não for fornecida
-            data_hora=medida.data_hora if medida.data_hora else datetime.now()
+            data_hora=medida.data_hora or datetime.now()
         )
         db.add(db_medida)
-        # Commit inicial para obter o ID da medida, se necessário, ou comitar tudo no final
-        # É mais seguro fazer um commit único no final do bloco try.
-        # db.commit()
-        # db.refresh(db_medida)
 
-        # ---> Início da Lógica de Verificação de Alertas <---
-        # Chama a função para verificar e criar alertas ANTES do commit final
         check_and_create_alertas(db, db_medida, estacao, parametro)
-        # ---> Fim da Lógica de Verificação de Alertas <---
 
-        # Commit final para salvar a medida e quaisquer alertas criados
-        db.commit()
-        db.refresh(db_medida) # Refresh após o commit para obter estado atualizado
-
+        # commit final já feito dentro de check_and_create_alertas()
+        db.refresh(db_medida)
         return db_medida
 
     except Exception as e:
-        db.rollback() # Garante que nem a medida nem os alertas sejam salvos em caso de erro
-        # Log do erro pode ser útil aqui: print(f"Erro ao criar medida/alerta: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro interno do servidor: {str(e)}")
+        db.rollback()
+        # aqui é impressa a stack trace completa no console
+        logger.exception("Erro ao criar medida/alerta")
+        # mantém o HTTP 500 para o cliente, mas com mensagem genérica
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 # ... (restante das suas rotas GET, PUT, DELETE para Medida) ...
 
