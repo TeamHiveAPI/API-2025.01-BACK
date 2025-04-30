@@ -22,10 +22,7 @@ def create_alerta(
     db.refresh(db_alerta)
     return db_alerta
 
-# Listar todos os alertas
-@router.get("/", response_model=list[AlertaResponse])
-def list_alertas(db: Session = Depends(get_db)):
-    return db.query(Alerta).all()
+
 
 # Listar alerta específico por ID
 @router.get("/{alerta_id}", response_model=AlertaResponse)
@@ -69,48 +66,46 @@ def delete_alerta(
     db.commit()
     return {"message": "Alerta deletado com sucesso"}
 
-@router.get("/ativos", response_model=List[AlertaResponse])
-def list_alertas_ativos(db: Session = Depends(get_db)):
-    alertas_ativos = (
-        db.query(Alerta)
-        .filter(Alerta.tempoFim == None)  # Alertas sem tempoFim são considerados ativos
-        .all()
-    )
-
+# Listar todos os alertas
+@router.get("/", response_model=list[AlertaResponse])
+def list_alertas(db: Session = Depends(get_db)):
+    alertas = db.query(Alerta).all()
     return [
         AlertaResponse(
             id=alerta.id,
-            alertaAtivo=True,
+            alerta_definido_id=alerta.alerta_definido_id,
             titulo=alerta.titulo,
             data_hora=alerta.data_hora,
             valor_medido=alerta.valor_medido,
             descricaoAlerta=alerta.descricaoAlerta,
             estacao=alerta.estacao,
-            coordenadas=list(map(float, alerta.coordenadas.strip("[]").split(","))),
-            tempoFim=None,
-            expandido=(alerta == alertas_ativos[0])
+            coordenadas=list(map(float, alerta.coordenadas.strip("[]").split(","))) if isinstance(alerta.coordenadas, str) else alerta.coordenadas,
+            tempoFim=alerta.tempoFim,
+            alertaAtivo=alerta.tempoFim is None,  # True se tempoFim for None
+            expandido=False
         )
-        for alerta in alertas_ativos
+        for alerta in alertas
     ]
 
 @router.get("/passados", response_model=List[AlertaResponse])
 def list_alertas_passados(db: Session = Depends(get_db)):
     alertas_passados = (
         db.query(Alerta)
-        .filter(Alerta.tempoFim != None)  # Alertas com tempoFim são considerados passados
+        .filter(Alerta.tempoFim != None)
         .all()
     )
 
     return [
         AlertaResponse(
             id=alerta.id,
+            alerta_definido_id=alerta.alerta_definido_id,
             alertaAtivo=False,
             titulo=alerta.titulo,
             data_hora=alerta.data_hora,
             valor_medido=alerta.valor_medido,
             descricaoAlerta=alerta.descricaoAlerta,
             estacao=alerta.estacao,
-            coordenadas=list(map(float, alerta.coordenadas.strip("[]").split(","))),
+            coordenadas=eval(alerta.coordenadas) if isinstance(alerta.coordenadas, str) else alerta.coordenadas,
             tempoFim=alerta.tempoFim,
             expandido=False
         )
@@ -129,13 +124,14 @@ def get_alerta_mais_recente(db: Session = Depends(get_db)):
 
     return AlertaResponse(
         id=alerta.id,
-        alertaAtivo=True,
+        alerta_definido_id=alerta.alerta_definido_id,
+        alertaAtivo=alerta.tempoFim is None,
         titulo=alerta.titulo,
         data_hora=alerta.data_hora,
         valor_medido=alerta.valor_medido,
         descricaoAlerta=alerta.descricaoAlerta,
         estacao=alerta.estacao,
-        coordenadas=list(map(float, alerta.coordenadas.strip("[]").split(","))),
+        coordenadas=eval(alerta.coordenadas) if isinstance(alerta.coordenadas, str) else alerta.coordenadas,
         tempoFim=alerta.tempoFim,
         expandido=False
     )
