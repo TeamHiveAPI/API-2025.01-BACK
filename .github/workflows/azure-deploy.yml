@@ -3,7 +3,7 @@ name: Deploy to Azure Windows VM
 on:
   push:
     branches:
-      - main  # Altere para a branch principal do seu repositório
+      - main  #Altere para a branch principal do seu repositório
 
 jobs:
   deploy:
