@@ -1,0 +1,53 @@
+name: Deploy to Azure Windows VM
+
+on:
+  push:
+    branches:
+      - main  # Altere para a branch principal do seu repositório
+
+jobs:
+  deploy:
+    runs-on: windows-latest  # Runner Windows para o pipeline
+
+    steps:
+      # Passo 1: Fazer checkout do código
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Passo 2: Configurar acesso à VM do Azure via WinRM
+      - name: Configure WinRM
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Passo 3: Executar comandos na VM usando Invoke-Command
+      - name: Execute commands on VM
+        shell: powershell
+        run: |
+          $username = "${{ secrets.AZURE_VM_USERNAME }}"
+          $password = ConvertTo-SecureString "${{ secrets.AZURE_VM_PASSWORD }}" -AsPlainText -Force
+          $credential = New-Object System.Management.Automation.PSCredential ($username, $password)
+
+          Invoke-Command -ComputerName ${{ secrets.AZURE_VM_IP }} -Credential $credential -ScriptBlock {
+            param($projectPath)
+
+            if (-Not (Test-Path -Path $projectPath)) {
+              mkdir $projectPath
+            }
+
+            cd $projectPath
+
+            git pull origin main
+
+            docker-compose up -d db
+
+            Start-Sleep -Seconds 10
+
+            $env:PGPASSWORD = "1234"
+            psql -h localhost -U postgres -c "CREATE DATABASE api;"
+
+            python -m venv venv
+            .\venv\Scripts\Activate.ps1
+            pip install -r requirements.txt
+            uvicorn app:app --host 0.0.0.0 --port 8000
+          } -ArgumentList "C:\path\to\your\project"
