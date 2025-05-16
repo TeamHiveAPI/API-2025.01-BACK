@@ -46,7 +46,7 @@ jobs:
             Start-Sleep -Seconds 10
 
             $env:PGPASSWORD = "1234"
-            psql -h localhost -U postgres -c "CREATE DATABASE api;" || Write-Host "Database already exists"
+            psql -h localhost -U postgres -c "CREATE DATABASE api;"
 
             python -m venv venv
             .\venv\Scripts\Activate.ps1
