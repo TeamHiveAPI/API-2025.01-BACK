@@ -25,30 +25,32 @@ jobs:
           Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
 
           Invoke-Command -ComputerName ${{ secrets.AZURE_VM_IP }} -Credential $credential -ScriptBlock {
-            param($projectPath)
+            param($baseDir)
 
-
-            if (-Not (Test-Path -Path $projectPath)) {
-              mkdir $projectPath
+            if (-Not (Test-Path -Path $baseDir)) {
+              mkdir $baseDir
             }
 
-            cd $projectPath
+            cd $baseDir
 
-            if (-Not (Test-Path -Path "$projectPath\API-2025.01-BACK")) {
-              git clone https://github.com/TeamHiveAPI/API-2025.01-BACK.git API-2025.01-BACK
+            if (-Not (Test-Path -Path "$baseDir\API-2025.01-BACK")) {
+              git clone https://github.com/TeamHiveAPI/API-2025.01-BACK.git  API-2025.01-BACK
             } else {
               cd API-2025.01-BACK
               git pull origin main
             }
+
+            cd API-2025.01-BACK
 
             docker-compose up -d
 
             Start-Sleep -Seconds 10
 
             $env:PGPASSWORD = "1234"
-            psql -h localhost -U postgres -c "CREATE DATABASE api;"
+            psql -h localhost -U postgres -c "CREATE DATABASE api;" || Write-Host "Database already exists"
 
             python -m venv venv
             .\venv\Scripts\Activate.ps1
             pip install -r requirements.txt
-          } -ArgumentList "C:\path\to\your\project\API-2025.01-BACK"
+            uvicorn main:app --host 0.0.0.0 --port 8000
+          } -ArgumentList "C:\path\to\your\project"
