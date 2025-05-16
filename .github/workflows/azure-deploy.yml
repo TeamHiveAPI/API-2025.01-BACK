@@ -14,13 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Passo 2: Configurar acesso à VM do Azure via WinRM
-      - name: Configure WinRM
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # Passo 3: Executar comandos na VM usando Invoke-Command
+      # Passo 2: Executar comandos na VM usando Invoke-Command
       - name: Execute commands on VM
         shell: powershell
         run: |
