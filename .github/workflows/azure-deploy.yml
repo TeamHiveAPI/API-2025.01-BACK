@@ -35,7 +35,7 @@ jobs:
             cd $projectPath
 
             if (-Not (Test-Path -Path "$projectPath\API-2025.01-BACK")) {
-              git clone https://github.com/ <seu-usuario>/<seu-repositorio>.git API-2025.01-BACK
+              git clone https://github.com/TeamHiveAPI/API-2025.01-BACK.git API-2025.01-BACK
             } else {
               cd API-2025.01-BACK
               git pull origin main
