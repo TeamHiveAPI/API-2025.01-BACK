@@ -22,6 +22,8 @@ jobs:
           $password = ConvertTo-SecureString "${{ secrets.AZURE_VM_PASSWORD }}" -AsPlainText -Force
           $credential = New-Object System.Management.Automation.PSCredential ($username, $password)
 
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
+
           Invoke-Command -ComputerName ${{ secrets.AZURE_VM_IP }} -Credential $credential -ScriptBlock {
             param($projectPath)
 
