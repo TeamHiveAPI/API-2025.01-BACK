@@ -1,45 +1,36 @@
-name: Deploy to Azure Windows VM
+name: Deploy automático para Azure VM
 
 on:
   push:
     branches:
-      - main  # Altere para a branch principal do seu repositório
+      - main
 
 jobs:
   deploy:
-    runs-on: windows-latest  # Runner Windows para o pipeline
+    name: Build e Deploy
+    runs-on: ubuntu-latest
 
     steps:
-      # Passo 1: Fazer checkout do código
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout do repositório
+        uses: actions/checkout@v3
 
-      # Passo 2: Executar comandos na VM usando Invoke-Command
-      - name: Execute commands on VM
-        shell: powershell
-        run: |
-          $username = "${{ secrets.AZURE_VM_USERNAME }}"
-          $password = ConvertTo-SecureString "${{ secrets.AZURE_VM_PASSWORD }}" -AsPlainText -Force
-          $credential = New-Object System.Management.Automation.PSCredential ($username, $password)
+      - name: Copiar arquivos para a VM via SSH
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "."
+          target: "~/app-backend"
 
-          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
-
-          Invoke-Command -ComputerName ${{ secrets.AZURE_VM_IP }} -Credential $credential -ScriptBlock {
-            param($projectPath)
-
-            cd $projectPath
-
-            git pull origin main
-
-            docker-compose up -d
-
-            Start-Sleep -Seconds 10
-
-            $env:PGPASSWORD = "1234"
-            psql -h localhost -U postgres -c "CREATE DATABASE api;"
-
-            python -m venv venv
-            .\venv\Scripts\Activate.ps1
-            pip install -r requirements.txt
-            uvicorn app:app --host 0.0.0.0 --port 8000
-          } -ArgumentList "C:\path\to\your\project\API-2025.01-BACK"
+      - name: Conectar e subir os containers
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/app-backend
+            docker compose down
+            docker compose pull
+            docker compose up -d --build

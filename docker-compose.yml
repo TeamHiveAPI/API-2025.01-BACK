@@ -1,27 +1,26 @@
 version: '3.9'
 
 services:
-  db:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
-      POSTGRES_DB: api
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   backend:
     build: .
-    container_name: backend
+    container_name: backend-fastapi
     ports:
       - "8000:8000"
     depends_on:
       - db
+    volumes:
+      - ./app:/app
+
+  db:
+    image: postgres:15
+    container_name: postgres-db
+    restart: always
+    ports:
+      - "5432:5432"
     environment:
-      DATABASE_URL: postgresql://postgres:1234@db:5432/api
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: api
 
 volumes:
-  postgres_data:
+  pgdata:
