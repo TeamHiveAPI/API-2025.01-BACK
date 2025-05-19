@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 # URL de conexão com o PostgreSQL
 DATABASE_URL = "postgresql://postgres:1234@localhost:5432/api"
 
+
 # Criar a engine de conexão
 engine = create_engine(DATABASE_URL, echo=True)
 
@@ -16,6 +17,8 @@ Base = declarative_base()
 
 # Função para criar as tabelas
 def create_tables():
+   
+
     Base.metadata.create_all(bind=engine)
 
 # Função para gerenciar a sessão do banco

@@ -4,11 +4,17 @@ from database import get_db
 from models import Parametro, Estacao, EstacaoParametro
 from schemas.parametro import ParametroCreate, ParametroResponse, ParametroUpdate
 from typing import List
+from core.security import get_current_user
+from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/parametros", tags=["parâmetros"])
 
 @router.post("/", response_model=int)
-def create_parametro(parametro: ParametroCreate, db: Session = Depends(get_db)) -> int:
+def create_parametro(
+    parametro: ParametroCreate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> int:
     try:
         new_parametro = Parametro(**parametro.dict())
         db_parametro = db.query(Parametro).filter(Parametro.nome == new_parametro.nome).first()
@@ -23,7 +29,9 @@ def create_parametro(parametro: ParametroCreate, db: Session = Depends(get_db)) 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[ParametroResponse])
-def list_all_parametros(db: Session = Depends(get_db)) -> List[ParametroResponse]:
+def list_all_parametros(
+    db: Session = Depends(get_db),
+) -> List[ParametroResponse]:
     try:
         db_parametros = db.query(Parametro).all()
         if not db_parametros:
@@ -46,17 +54,38 @@ def list_all_parametros(db: Session = Depends(get_db)) -> List[ParametroResponse
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{parametro_id}", response_model=ParametroResponse)
-def get_parametro_by_id(parametro_id: int, db: Session = Depends(get_db)) -> ParametroResponse:
+def get_parametro_by_id(
+    parametro_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> ParametroResponse:
     try:
         db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
         if not db_parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado.")
-        return ParametroResponse.from_orm(db_parametro)
+        
+        # Busca o nome da estação
+        estacao_parametro = db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id).first()
+        estacao_nome = None
+        if estacao_parametro:
+            estacao = db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id).first()
+            if estacao:
+                estacao_nome = estacao.nome
+
+        return ParametroResponse(
+            **db_parametro.__dict__,
+            estacao_nome=estacao_nome
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{parametro_id}", response_model=dict)
-def update_parametro(parametro_id: int, parametro: ParametroUpdate, db: Session = Depends(get_db)) -> dict:
+def update_parametro(
+    parametro_id: int, 
+    parametro: ParametroUpdate, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> dict:
     try:
         db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
         if not db_parametro:
@@ -76,7 +105,11 @@ def update_parametro(parametro_id: int, parametro: ParametroUpdate, db: Session 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{parametro_id}", response_model=dict)
-def delete_parametro(parametro_id: int, db: Session = Depends(get_db)) -> dict:
+def delete_parametro(
+    parametro_id: int, 
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user),
+) -> dict:
     try:
         db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
         if not db_parametro:
