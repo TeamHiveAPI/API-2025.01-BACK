@@ -1,7 +1,9 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey
+import json
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Boolean, ForeignKey, TIMESTAMP, Text
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
+import uuid
 
 # Enums
 class StatusEstacao(enum.Enum):
@@ -16,6 +18,7 @@ class StatusAlerta(enum.Enum):
 class Estacao(Base):
     __tablename__ = "estacao"
     id = Column(Integer, primary_key=True, index=True)
+    uid = Column(String(100), unique=True, index=True, default=lambda: str(uuid.uuid4()))
     nome = Column(String(100), index=True)
     cep = Column(String(9))
     rua = Column(String(100))
@@ -52,6 +55,7 @@ class Parametro(Base):
     fator_conversao = Column(Float)
     offset = Column(Float)
     tipo_parametro_id = Column(Integer, ForeignKey("tipo_parametros.id"))
+    json = Column(String(20))
 
     # Relacionamento com estações
     estacoes = relationship(
@@ -85,6 +89,12 @@ class Alerta(Base):
     alerta_definido_id = Column(Integer, ForeignKey("alertas_definidos.id"))
     data_hora = Column(DateTime)
     valor_medido = Column(Float)
+    titulo = Column(Text, nullable=False)
+    descricaoAlerta = Column(Text, nullable=False)
+    estacao = Column(String(255))
+    coordenadas = Column(String(50))
+    tempoFim = Column(DateTime, nullable=True)
+    expandido = Column(Boolean, default=False)
 
 # Tabela: medidas
 class Medida(Base):
@@ -93,7 +103,7 @@ class Medida(Base):
     estacao_id = Column(Integer, ForeignKey("estacao.id"))
     parametro_id = Column(Integer, ForeignKey("parametros.id"))
     valor = Column(Float)
-    data_hora = Column(DateTime)
+    data_hora = Column(TIMESTAMP)
 
 # Tabela: usuarios
 class Usuario(Base):

@@ -101,3 +101,12 @@ uvicorn main:app --reload
 ```
 O parâmetro --reload faz o servidor reiniciar automaticamente ao alterar o código.
 O servidor será iniciado em http://127.0.0.1:8000.
+
+Passo 6: Aplicar Variáveis de Ambiente
+Este projeto já contém um arquivo .env.sample com os exemplos de variáveis necessárias.
+
+Copie esse arquivo para criar seu próprio .env:
+
+```bash
+cp .env.sample .env
+```
