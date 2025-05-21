@@ -10,7 +10,7 @@ class ParametroCreate(BaseModel):
     fator_conversao: float
     offset: float
     tipo_parametro_id: int
-    json: str
+   
 
 class ParametroResponse(ParametroCreate):
     id: int
@@ -27,4 +27,4 @@ class ParametroUpdate(BaseModel):
     fator_conversao: Optional[float] = None
     offset: Optional[float] = None
     tipo_parametro_id: Optional[int] = None
-    json: Optional[str] = None
+    
