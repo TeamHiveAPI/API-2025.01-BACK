@@ -1,6 +1,6 @@
 # routers/medida.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 # Importar os modelos necessários
@@ -166,6 +166,36 @@ def update_medida(medida_id: int, medida: MedidaUpdate, db: Session = Depends(ge
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/lote", response_model=List[MedidaResponse])
+def create_medidas_lote(
+    medidas: List[MedidaCreate] = Body(...),
+    db: Session = Depends(get_db)
+):
+    criadas = []
+    for medida in medidas:
+        estacao = db.query(Estacao).filter(Estacao.id == medida.estacao_id).first()
+        if not estacao:
+            raise HTTPException(status_code=404, detail="Estação não encontrada")
+
+        parametro = db.query(Parametro).filter(Parametro.id == medida.parametro_id).first()
+        if not parametro:
+            raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
+
+        db_medida = Medida(
+            estacao_id=medida.estacao_id,
+            parametro_id=medida.parametro_id,
+            valor=medida.valor,
+            data_hora=medida.data_hora or datetime.now()
+        )
+        db.add(db_medida)
+        db.flush()
+
+        check_and_create_alertas(db, db_medida, estacao, parametro)
+        criadas.append(db_medida)
+
+    db.commit()
+    return criadas
 
 @router.delete("/{medida_id}", status_code=204)
 def delete_medida(medida_id: int, db: Session = Depends(get_db)):
