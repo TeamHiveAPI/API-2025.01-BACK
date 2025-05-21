@@ -99,3 +99,12 @@ Cuidado ao ligar o sensor pois precisa encaixar certinho o gnd do sensor com o g
 
 8.4 - Clicar no botão no canto suerior esquerdo que parece uma seta para a direta => para compilar o arquivo no esp32
 (IMPORTANTE: Caso o monitor serial esteja aberto no momento da gravação do arquivo no esp32 feche o onitor serial, caso contrario o esp32 vai falar que a sua porta COM ja esta ocupada)
+
+
+comandos importantes:
+
+Parar servidor do mosquitto: net stop mosquitto;
+
+Iniciar o servidor do mosquitto: net start mosquitto;
+
+ver os dados sendo enviados: mosquitto_sub -h 192.168.85.119 -p 1883 -t "api-fatec/estacao/dados/" -v
