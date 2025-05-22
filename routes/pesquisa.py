@@ -12,11 +12,11 @@ def interpretar_entrada(query: str):
     doc = nlp(query.lower())
 
     tipos = {
-        "estacao": ["estação", "estacao", "estacoes"],
-        "sensor": ["sensor", "sensores", "parametro"],
-        "alerta_definido": ["alerta definido", "alertas definidos"],
-        "usuario": ["usuario", "usuários"],
-        "tipo_sensor": ["tipo", "tipo sensor", "tipo de sensor"]
+        "estacao": ["est", "estação", "estacao", "estacoes", "estações"],
+        "sensor": ["sen", "par," "sensor", "sensores", "parametro", "parametros", "parametro", "parametros"],
+        "alerta_definido": ["def," "adef", "alerta definido", "alertas definidos"],
+        "usuario": ["usu", "usuario", "usuários", "usuarios"],
+        "tipo_sensor": ["ts", "tipo", "tipo sensor", "tipo de sensor"]
     }
 
     tipo_detectado = None
