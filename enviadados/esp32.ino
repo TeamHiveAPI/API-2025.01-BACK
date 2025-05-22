@@ -1,20 +1,26 @@
 // #include <WiFi.h>
 // #include <PubSubClient.h>
 // #include "DHT.h"
+// #include <time.h>  // Adicionado para NTP
 
 // // ======== CONFIGURAÇÕES WI-FI ========
-// const char* ssid = "nome da sua rede";
-// const char* password = "senha da sua rede";
+// const char* ssid = "o nome do seu wifi";
+// const char* password = "sua senha do wifi";
 
 // // ======== CONFIGURAÇÕES MQTT ========
-// const char* mqtt_server = "ip local da sua maquina";
+// const char* mqtt_server = "seu ip local";
 // const int mqtt_port = 1883;
 // const char* mqtt_topic = "api-fatec/estacao/dados/";
 
 // // ======== CONFIGURAÇÕES DHT ========
-// #define DHTPIN 14
+// #define DHTPIN 32
 // #define DHTTYPE DHT11
 // DHT dht(DHTPIN, DHTTYPE);
+
+// // ======== CONFIGURAÇÕES NTP ========
+// const char* ntpServer = "pool.ntp.org";  // Servidor NTP global
+// const long gmtOffset_sec = -3 * 3600;    // GMT-3 (Brasil)
+// const int daylightOffset_sec = 0;         // Sem horário de verão
 
 // // ======== OBJETOS ========
 // WiFiClient espClient;
@@ -22,12 +28,33 @@
 
 // // ======== INTERVALO DE ENVIO ========
 // unsigned long lastMsg = 0;
-// const long interval = 600000; // 10 minutos
+// const long interval = 30000;  // 30 segundos
 
 // // ======== VARIÁVEIS GLOBAIS ========
 // unsigned int leituras_falhas = 0;
 // const unsigned int MAX_TENTATIVAS_SENSOR = 3;
 // unsigned long ultimaLeituraValida = 0;
+
+// // Função para obter o UID único da placa ESP32 (JÁ FUNCIONA BEM!)
+// String getDeviceUID() {
+//   uint64_t chipid = ESP.getEfuseMac();
+//   char uid[20];
+//   snprintf(uid, sizeof(uid), "%04X%08X", (uint16_t)(chipid >> 32), (uint32_t)chipid);
+//   return String(uid);
+// }
+
+// // Configura o NTP (Network Time Protocol)
+// void configNTP() {
+//   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+//   Serial.println("Sincronizando horário com NTP...");
+  
+//   struct tm timeinfo;
+//   if (!getLocalTime(&timeinfo)) {
+//     Serial.println("Falha ao obter horário NTP");
+//     return;
+//   }
+//   Serial.println(&timeinfo, "Horário configurado: %A, %d %B %Y %H:%M:%S");
+// }
 
 // void setup_wifi() {
 //   delay(100);
@@ -61,56 +88,66 @@
 
 // bool lerDHT11(float &temperatura, float &umidade) {
 //   for (int i = 1; i <= MAX_TENTATIVAS_SENSOR; i++) {
-//     // Limpa qualquer estado anterior do sensor
-//     delay(200);
+//     delay(200); // Intervalo crítico para o DHT11
     
-//     temperatura = dht.readTemperature();
-//     umidade = dht.readHumidity();
+//     // Lê os valores brutos
+//     float temp_raw = dht.readTemperature();
+//     float umid_raw = dht.readHumidity();
     
-//     Serial.print("Tentativa ");
+//     Serial.print("Leitura bruta - Tentativa ");
 //     Serial.print(i);
 //     Serial.print(": Temp=");
-//     Serial.print(temperatura);
+//     Serial.print(temp_raw);
 //     Serial.print("C, Umidade=");
-//     Serial.print(umidade);
+//     Serial.print(umid_raw);
 //     Serial.println("%");
 
-//     // Verificação robusta dos valores
-//     if (!isnan(temperatura) && !isnan(umidade)) {
-//       if (temperatura >= -20 && temperatura <= 60 && // Faixa ampliada
-//           umidade >= 5 && umidade <= 95) {           // Faixa ampliada
-//         ultimaLeituraValida = millis();
-//         return true;
+//     // Filtro de validação rigoroso
+//     if (isnan(temp_raw) || isnan(umid_raw)) {
+//       Serial.println("Valores inválidos (NaN)");
+//       continue;
+//     }
+
+//     // Faixas realistas para interior em clima temperado
+//     if (temp_raw >= -5 && temp_raw <= 50 && 
+//         umid_raw >= 10 && umid_raw <= 95) {
+//       temperatura = temp_raw;
+//       umidade = umid_raw;
+//       ultimaLeituraValida = millis();
+      
+//       // Filtro adicional para temperaturas negativas
+//       if (temperatura < 0) {
+//         Serial.println("Ajustando temperatura negativa para 0");
+//         temperatura = 0.0; // Valor mínimo realista para interior
 //       }
-//       Serial.println("Valores fora da faixa esperada");
+      
+//       return true;
+//     }
+//     else {
+//       Serial.println("Valores fora da faixa realista");
 //     }
     
-//     if (i < MAX_TENTATIVAS_SENSOR) {
-//       delay(1500); // Intervalo menor entre tentativas
-//     }
+//     if (i < MAX_TENTATIVAS_SENSOR) delay(1000);
 //   }
   
 //   leituras_falhas++;
-//   Serial.print("Falha na leitura após ");
-//   Serial.print(MAX_TENTATIVAS_SENSOR);
-//   Serial.println(" tentativas");
 //   return false;
 // }
+
 
 // void setup() {
 //   Serial.begin(115200);
 //   Serial.println("\nInicializando estação meteorológica...");
   
-//   // Inicializa sensor com timeout
 //   dht.begin();
-//   delay(2000); // Tempo crítico para inicialização do DHT11
+//   delay(2000);
   
-//   Serial.println("Sensor DHT11 inicializado");
 //   setup_wifi();
+//   configNTP();  // Sincroniza o horário
   
 //   client.setServer(mqtt_server, mqtt_port);
 //   client.setBufferSize(256);
-//   client.setKeepAlive(60); // Keepalive de 60 segundos
+//   client.setKeepAlive(60);
 // }
 
 // void loop() {
@@ -126,39 +163,30 @@
 //     float temperatura = NAN;
 //     float umidade = NAN;
 //     bool leituraOk = false;
-    
+
 //     Serial.println("\nIniciando leitura do sensor...");
 //     leituraOk = lerDHT11(temperatura, umidade);
-
-//     // Prepara payload com todos os cenários
-//     char payload[256];
-//     if (leituraOk) {
-//       snprintf(payload, sizeof(payload),
-//         "{\"uid\":\"esp32-dht11-001\",\"temp\":%.2f,\"umid\":%.2f,\"status\":\"OK\",\"falhas\":%u}",
-//         temperatura, umidade, leituras_falhas
-//       );
-//     } else {
-//       snprintf(payload, sizeof(payload),
-//         "{\"uid\":\"esp32-dht11-001\",\"temp\":null,\"umid\":null,\"status\":\"ERRO\",\"falhas\":%u}",
-//         leituras_falhas
-//       );
-//     }
-
-//     // Publica independentemente do status
-//     Serial.print("Enviando: ");
-//     Serial.println(payload);
     
-//     if (!client.publish(mqtt_topic, payload)) {
-//       Serial.println("Erro ao publicar no MQTT!");
-//     }
+//     if (leituraOk) {
+//       struct tm timeinfo;
+//       getLocalTime(&timeinfo);  // Obtém horário atual
+//       time_t unixTime = mktime(&timeinfo);
 
-//     // Informações de diagnóstico
-//     Serial.print("Última leitura válida há ");
-//     Serial.print((millis() - ultimaLeituraValida) / 1000);
-//     Serial.println(" segundos");
-//     Serial.print("Total de falhas: ");
-//     Serial.println(leituras_falhas);
+//       char payload[256];
+//       snprintf(payload, sizeof(payload),
+//         "{\"uid\":\"%s\",\"temp\":%.2f,\"umid\":%.2f,\"unixtime\":%ld}",
+//         getDeviceUID().c_str(), temperatura, umidade, unixTime
+//       );
+
+//       Serial.print("Enviando: ");
+//       Serial.println(payload);
+      
+//       if (!client.publish(mqtt_topic, payload)) {
+//         Serial.println("Erro ao publicar no MQTT!");
+//       }
+//     } else {
+//       Serial.println("Falha na leitura do sensor");
+//     }
 //   }
-  
-//   delay(50); // Pequeno delay para estabilidade
+//   delay(50);
 // }
