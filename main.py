@@ -5,7 +5,8 @@ import models
 from database import create_tables
 from scripts.create_test_user_and_token import CreateTestUserAndToken
 from routes import (
-    estacoes, 
+    estacoes,
+    pesquisa, 
     usuario, 
     alerta, 
     alerta_definido, 
@@ -56,6 +57,7 @@ app.include_router(alerta_definido.router)
 app.include_router(dashboard.router)
 app.include_router(medida.router)
 app.include_router(tempo_alerta.router)
+app.include_router(pesquisa.router)
 
 @app.get("/")
 def read_root():

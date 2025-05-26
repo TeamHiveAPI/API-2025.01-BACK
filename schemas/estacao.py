@@ -45,6 +45,7 @@ class EstacaoCreate(BaseModel):
     sensores: Optional[List[int]] = []
 
 class EstacaoUpdate(BaseModel):
+    uid: Optional[str] = None
     nome: Optional[str] = None
     cep: Optional[str] = None
     rua: Optional[str] = None

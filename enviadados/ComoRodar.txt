@@ -1,0 +1,110 @@
+Como configurar a ide do arduino e rodar o codigo esp32.ino:
+
+1 - Baixe a ide do arduino, a minha versão é a 1.8.19
+
+2 - Instalar as bibliotecas necessarias:
+
+2.1 - Vá em Sketch > Inlcuir Biblioteca > Gerenciar Bibliotecas...
+
+2.2 - Procure e instale exatamente essas bibliotecas com esses nomes:
+    
+    DHT sensor library
+    PubSubClient
+    Adafruit Undefined Sensor(Caso tenha problemas com o sensor)
+    WIFI(ja vem incluida com o esp32)
+
+3 - Insalar a placa do esp32 na ide do arduino:
+
+3.1 - Vá em Arquivo > Preferências:
+
+3.2 - No campo URLs adicionais para Gerenciadores de Placas,
+adicione o seguinte link:
+
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+3.3 - Depois abra a guia de Ferramentas > Placa > Gerenciador de Placas...
+
+3.4 - Procure por esp32 e instale "esp32 by Espressif Systems" e "Arduino ESP32 Boards"
+
+4 - Configurar a placa correta e sua porta COM:
+
+4.1 - Vá em Ferramentas > Placa > ESP32 Arduino > "ESP32 Dev Module", exatmente com esse nome
+
+4.2 - Vá em Ferramentas > Porta e selecione a COM correta do seu esp32( ela aparece quando o esp32 esta conectado ao seu computador), geralmente é a COM3, ou a COM4
+
+5 - Configurando o monitor serial(console de logs de sucesso ou erro)
+
+5.1 - Vá em Ferramentas > Monitor serial > procure pro velocidade do monitor serial e ajuste para 115200
+(OBS: o monitor serial so vai anrir se o esp32 estiver conectado ao seu computador e você estiver indicado a port COM correta)
+
+6 - Instalar e configurar o mosquito:
+
+6.1 - Baixar e instalar do site oficcial:
+
+https://mosquitto.org/download/
+
+6.2 - Tornar o mosquitto acessivél de outras maquinas(esp32)
+
+    Vá ate a pasta na qual o mosquitto foi instalado geralmente é C:\Program Files\mosquitto
+
+    Edite ou crie o arquivo mosquitto.config colocando essas linhas no final do arquivo:
+
+    # Permite conexões de qualquer IP
+    listener 1883 0.0.0.0
+
+    # Permite conexões anônimas (para testes)
+    allow_anonymous true
+
+    # Habilita logging
+    log_dest file C:\Program Files\mosquitto\mosquitto.log
+    log_type all
+
+    (OBS: para salvar algo dentro da pasta do mosquitto você vai precisar abrir seu bloco de notas como adm, 
+    abrir o arquivo desejado dentro da pasta mosquitto\mosquitto.config editar o codigo com as linhas acima e salvar)
+
+6.3 - Executar o mosquitto e testar se deu certo a instalação
+
+    Vá no seu terminal cmd e abra ele como administrador
+
+    Digite net stop mosquitto (para parar o serviço caso esteja rodando)
+    Em seguida net start mosquitto(para iniciar o serviço)
+
+    Em outro terminal tambem aberto como adiministrador digite mosquitto -v
+    Isso ira te fornecer o log de informações do mosquitto.
+
+    Depois de startar o serviço do mosquito rode o comando abaixo no terminal onde o mosquito foi startado
+
+    mosquitto_sub -t "api-fatec/estacao/dados/" -h 127.0.0.1 -p 1883
+
+
+7 - Caso o esp32 apresente um problema no monitor serial "erro qo se conectar com o mqtt rc=-2"
+
+7.1 - Criar variavel de ambiente Path com o caminho para o arquivo mosquito.exe
+
+7.2 - Verificar o firewall e criar regras de entrada para permitir conexões esternas a porta 1883
+
+8 - Montando esquema fisico e carregando o codigo para o esp32:
+
+8.1 - Pegue a plaquina fornecida pelo professor com o esp32, ligue o sensor no modulo 3 (pino 14)
+Cuidado ao ligar o sensor pois precisa encaixar certinho o gnd do sensor com o gnd da placa.
+
+8.2 - Dizer a ide qual a sua porta COM:
+    Conectar o esp32 ao seu computador, repetir os passos para configurar sua porta
+
+8.3 - Copiar o codigo do arquivo esp32.ino no script da ide do arduino:
+    Preencher informações como o nome da sua rede wifi, ou movel ssid
+    Preencher a senha da sua rede o password.
+    Editar o ip local da sua maquina para configurar corretamente o mqtt.
+    Mudar os segundos para teste de 60000(10 em 10 minutos) para 30000( 30 segundos apenas para teste)
+
+8.4 - Clicar no botão no canto suerior esquerdo que parece uma seta para a direta => para compilar o arquivo no esp32
+(IMPORTANTE: Caso o monitor serial esteja aberto no momento da gravação do arquivo no esp32 feche o onitor serial, caso contrario o esp32 vai falar que a sua porta COM ja esta ocupada)
+
+
+comandos importantes:
+
+Parar servidor do mosquitto: net stop mosquitto;
+
+Iniciar o servidor do mosquitto: net start mosquitto;
+
+ver os dados sendo enviados: mosquitto_sub -h 192.168.85.119 -p 1883 -t "api-fatec/estacao/dados/" -v

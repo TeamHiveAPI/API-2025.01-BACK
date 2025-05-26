@@ -43,6 +43,7 @@ class TipoParametro(Base):
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(50), index=True)
     descricao = Column(String)
+    json = Column(String(20))
 
 # Tabela: parametros (sensores)
 class Parametro(Base):
@@ -55,7 +56,7 @@ class Parametro(Base):
     fator_conversao = Column(Float)
     offset = Column(Float)
     tipo_parametro_id = Column(Integer, ForeignKey("tipo_parametros.id"))
-    json = Column(String(20))
+    
 
     # Relacionamento com estações
     estacoes = relationship(
