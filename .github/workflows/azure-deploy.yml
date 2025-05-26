@@ -73,7 +73,9 @@ jobs:
           docker run -d \
             --name backend-app \
             -p 8000:8000 \
-            -e DATABASE_URL=postgresql://postgres:password@db:5432/mydatabase \
+            -e DATABASE_URL=postgresql://postgres:1234@db:5432/api \
+            -e MONGO_URI=mongodb+srv://tmadm:apifatec2025@api-estacao.xikvdt1.mongodb.net/?retryWrites=true&w=majority \
+            -e MQTT_BROKER=mqtt \
             --restart always \
             ${{ secrets.DOCKERHUB_USERNAME }}/backend-app:latest
 
@@ -97,8 +99,56 @@ jobs:
             --name postgres-db \
             -p 5432:5432 \
             -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=password \
-            -e POSTGRES_DB=mydatabase \
+            -e POSTGRES_PASSWORD=1234 \
+            -e POSTGRES_DB=api \
             -v postgres_data:/var/lib/postgresql/data \
             --restart always \
             postgres:15-alpine
+
+  deploy-mqtt:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-push
+    runs-on: [self-hosted, linux, x64]
+    environment: cicd
+    steps:
+      - name: Parar e remover container antigo do MQTT
+        run: |
+          docker stop mqtt-broker || true
+          docker rm mqtt-broker || true
+
+      - name: Iniciar container do MQTT
+        run: |
+          docker run -d \
+            --name mqtt-broker \
+            -p 1883:1883 \
+            -p 9001:9001 \
+            -v ./mosquitto/config:/mosquitto/config \
+            -v ./mosquitto/data:/mosquitto/data \
+            -v ./mosquitto/log:/mosquitto/log \
+            --restart always \
+            eclipse-mosquitto:latest
+
+  deploy-mongo:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-push
+    runs-on: [self-hosted, linux, x64]
+    environment: cicd
+    steps:
+      - name: Parar e remover container antigo do MongoDB
+        run: |
+          docker stop mongo-db || true
+          docker rm mongo-db || true
+
+      - name: Limpar volumes antigos
+        run: docker volume prune -f
+
+      - name: Iniciar container do MongoDB
+        run: |
+          docker run -d \
+            --name mongo-db \
+            -p 27017:27017 \
+            -e MONGO_INITDB_ROOT_USERNAME=tmadm \
+            -e MONGO_INITDB_ROOT_PASSWORD=apifatec2025 \
+            -v mongo_data:/data/db \
+            --restart always \
+            mongo:6.0
