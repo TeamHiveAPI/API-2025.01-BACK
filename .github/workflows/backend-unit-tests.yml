@@ -1,13 +1,13 @@
-name: CI - Testes Unitários
+name: Backend - Testes Unitários
 
 on:
   push:
-    branches: [ feature/*, develop ]
+    branches: [ feature/*, develop, main ]
   pull_request:
-    branches: [ develop, homolog, main ]
+    branches: [ develop, main ]
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
     
     services:
@@ -43,10 +43,11 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:1234@localhost:5432/api_test
       run: |
-        pytest --cov=. --cov-report=xml
+        # Executa apenas testes unitários, excluindo testes de integração
+        pytest --cov=. --cov-report=xml --ignore=tests/integration
         
     - name: Upload coverage report
       uses: actions/upload-artifact@v3
       with:
-        name: coverage-report
+        name: unit-test-coverage-report
         path: coverage.xml

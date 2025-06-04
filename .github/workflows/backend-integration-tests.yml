@@ -1,13 +1,13 @@
-name: CI - Testes de Integração
+name: Backend - Testes de Integração
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ develop, main ]
   pull_request:
-    branches: [ homolog, main ]
+    branches: [ main ]
 
 jobs:
-  integration-test:
+  integration-tests:
     runs-on: ubuntu-latest
     
     services:
@@ -43,10 +43,11 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:1234@localhost:5432/api_test
       run: |
+        # Executa apenas testes de integração
         pytest tests/integration --cov=. --cov-report=xml
         
     - name: Upload coverage report
       uses: actions/upload-artifact@v3
       with:
-        name: integration-coverage-report
+        name: integration-test-coverage-report
         path: coverage.xml
