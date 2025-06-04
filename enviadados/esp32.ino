@@ -4,11 +4,11 @@
 // #include <time.h>
 
 // // ======== CONFIGURAÇÕES WI-FI ========
-// const char* ssid = "seu wifi";
-// const char* password = "senha do wifi";
+// const char* ssid = "g84 Ivan";
+// const char* password = "Ivan1403";
 
 // // ======== CONFIGURAÇÕES MQTT ========
-// const char* mqtt_server = "seu ip";
+// const char* mqtt_server = "192.168.85.119";
 // const int mqtt_port = 1883;
 // const char* mqtt_topic = "api-fatec/estacao/dados/";
 
@@ -18,9 +18,8 @@
 // DHT dht(DHTPIN, DHTTYPE);
 
 // // ======== CONFIGURAÇÕES NTP ========
-// // const char* ntpServer = "pool.ntp.org";
-// const char* ntpServer = "seu ip";
-// const long gmtOffset_sec = -10800; // UTC-3 (Horário de Brasília, sem horário de verão)
+// const char* ntpServer = "192.168.85.119";
+// const long gmtOffset_sec = -10800;
 // const int daylightOffset_sec = 0;
 
 // // ======== OBJETOS ========
@@ -29,7 +28,7 @@
 
 // // ======== VARIÁVEIS GLOBAIS ========
 // unsigned long lastMsg = 0;
-// const long interval = 30000; // 30 segundos
+// const long interval = 30000;
 // unsigned int leituras_falhas = 0;
 // const unsigned int MAX_TENTATIVAS_SENSOR = 3;
 // unsigned long ultimaLeituraValida = 0;
@@ -63,33 +62,42 @@
 //   }
 // }
 
-// void setup_wifi() {
+// void TaskWiFi(void* parameter) {
 //   delay(100);
 //   Serial.print("Conectando ao Wi-Fi: ");
 //   Serial.println(ssid);
 
 //   WiFi.begin(ssid, password);
 //   while (WiFi.status() != WL_CONNECTED) {
-//     delay(1000);
 //     Serial.print(".");
+//     vTaskDelay(1000 / portTICK_PERIOD_MS);
 //   }
 
 //   Serial.println("\nWi-Fi conectado!");
 //   Serial.print("IP: ");
 //   Serial.println(WiFi.localIP());
+
+//   configNTP();
+//   vTaskDelete(NULL);  // Task executa uma vez e termina
 // }
 
-// void reconnect() {
-//   while (!client.connected()) {
-//     Serial.print("Conectando ao MQTT...");
-//     if (client.connect("ESP32Client")) {
-//       Serial.println("Conectado!");
-//     } else {
-//       Serial.print("Falha, rc=");
-//       Serial.print(client.state());
-//       Serial.println(" Tentando novamente em 5 segundos...");
-//       delay(5000);
+// void TaskMQTT(void* parameter) {
+//   client.setServer(mqtt_server, mqtt_port);
+//   client.setBufferSize(256);
+//   client.setKeepAlive(60);
+
+//   while (true) {
+//     if (WiFi.status() == WL_CONNECTED && !client.connected()) {
+//       Serial.print("Conectando ao MQTT...");
+//       if (client.connect("ESP32Client")) {
+//         Serial.println("Conectado!");
+//       } else {
+//         Serial.print("Falha, rc=");
+//         Serial.print(client.state());
+//         Serial.println(" Tentando novamente em 5 segundos...");
+//       }
 //     }
+//     vTaskDelay(5000 / portTICK_PERIOD_MS);
 //   }
 // }
 
@@ -128,28 +136,22 @@
 //   return false;
 // }
 
-// // ========== SETUP E LOOP ==========
+// // ========== SETUP E LOOP PRINCIPAL ==========
 
 // void setup() {
 //   Serial.begin(115200);
 //   Serial.println("\nInicializando estação meteorológica...");
-
 //   dht.begin();
-//   delay(2000);
 
-//   setup_wifi();
-//   configNTP();
-
-//   client.setServer(mqtt_server, mqtt_port);
-//   client.setBufferSize(256);
-//   client.setKeepAlive(60);
+//   // Criando as tasks
+//   xTaskCreate(TaskWiFi, "WiFiTask", 4096, NULL, 1, NULL);
+//   xTaskCreate(TaskMQTT, "MQTTTask", 4096, NULL, 1, NULL);
 // }
 
 // void loop() {
-//   if (!client.connected()) {
-//     reconnect();
+//   if (client.connected()) {
+//     client.loop();
 //   }
-//   client.loop();
 
 //   unsigned long now = millis();
 //   if (now - lastMsg > interval) {
@@ -163,8 +165,6 @@
 //       struct tm timeinfo;
 //       if (getLocalTime(&timeinfo)) {
 //         time_t unixTime = mktime(&timeinfo);
-
-//         // Sem ajuste manual do horário!
 
 //         char payload[256];
 //         snprintf(payload, sizeof(payload),
