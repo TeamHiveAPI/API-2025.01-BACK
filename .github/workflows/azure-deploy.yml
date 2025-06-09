@@ -13,11 +13,16 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
+      - name: Parar e remover containers antigos
+        run: |
+          docker-compose down --remove-orphans
+          docker container prune -f
+          docker volume prune -f
+
       - name: Deploy com Docker Compose
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
         run: |
-          docker-compose down
           docker-compose up -d --build
