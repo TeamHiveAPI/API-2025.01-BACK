@@ -4,7 +4,7 @@ services:
   # Serviço Backend
   backend:
     build:
-      context: ./backend
+      context: .
     container_name: backend-app
     ports:
       - "8000:8000"
