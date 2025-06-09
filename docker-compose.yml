@@ -9,11 +9,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:1234@db:5432/api
-      - MONGO_URI=mongodb+srv://tmadm:apifatec2025@api-estacao.xikvdt1.mongodb.net/?retryWrites=true&w=majority
-      - MQTT_BROKER=mqtt
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/api
+      - MONGO_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongo:27017
+      - MQTT_BROKER=mqtt://mqtt:1883  # Sem autenticação no MQTT por enquanto
     depends_on:
       - db
+      - mongo
       - mqtt
     restart: always
 
@@ -22,22 +23,22 @@ services:
     image: postgres:15-alpine
     container_name: postgres-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
-      POSTGRES_DB: api
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=api
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
 
-  # Serviço MongoDB (externo)
+  # Serviço MongoDB (local)
   mongo:
     image: mongo:6.0
     container_name: mongo-db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: tmadm
-      MONGO_INITDB_ROOT_PASSWORD: apifatec2025
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
     ports:
       - "27017:27017"
     volumes:
@@ -49,7 +50,7 @@ services:
     image: eclipse-mosquitto:latest
     container_name: mqtt-broker
     ports:
-      - "1883:1883"  # Porta MQTT
+      - "1883:1883"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
