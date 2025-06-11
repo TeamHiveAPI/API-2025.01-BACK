@@ -1,4 +1,4 @@
-name: Deploy to VM
+name: CI/CD Azure FastAPI
 
 on:
   push:
@@ -6,23 +6,50 @@ on:
       - main
 
 jobs:
-  deploy:
-    runs-on: [self-hosted, linux, x64]
-    environment: cicd
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
     steps:
+      # 1) Faz o checkout do código
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Parar e remover containers antigos
-        run: |
-          docker-compose down --remove-orphans
-          docker container prune -f
-          docker volume prune -f
+      # 2) Configura Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-      - name: Deploy com Docker Compose
-        env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
-          MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+      # 3) Instala dependências locais (para rodar testes, lint, etc.)
+      - name: Instalar dependências
         run: |
-          docker-compose up -d --build
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 5) Faz login no Azure usando um Service Principal
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 6) Publica o código via ZIP Deploy no seu Web App
+      - name: Deploy via Azure CLI
+        run: |
+          # comprime seu código
+          zip -r app.zip .
+          az webapp deployment source config-zip \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --src app.zip
+
+
+      # 7) Configura as App Settings (env vars) do App Service
+      - name: Configurar variáveis de ambiente
+        run: |
+          az webapp config appsettings set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --settings \
+              DATABASE_URL="${{ secrets.POSTGRESQL_CONNECTION_STRING }}" \
+              MONGO_URI="${{ secrets.COSMOS_CONNECTION_STRING }}" \
+              MQTT_BROKER_URI="${{ secrets.MQTT_BROKER_URI }}"
