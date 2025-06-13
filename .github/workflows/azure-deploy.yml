@@ -1,4 +1,4 @@
-name: CI/CD Azure FastAPI
+name: 🚀 Deploy AWS EC2 (AWS Academy)
 
 on:
   push:
@@ -6,56 +6,124 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy-backend:
+    name: Deploy Backend
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Faz o checkout do código
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      # 2) Configura Python 3.11 no runner
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      # 3) Instala as dependências localmente no runner
-      - name: Instalar dependências (runner)
+      - name: Configurar chave SSH
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
 
-      # 4) Faz login no Azure
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # 5) Habilita o build remoto no App Service
-      - name: Habilitar build remoto (Oryx)
+      - name: Copiar e iniciar container no Backend
         run: |
-          az webapp config appsettings set \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true
+          scp -i academy-key.pem -o StrictHostKeyChecking=no \
+            -r . ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
+              cd /home/ubuntu/app
+              docker build -t teamhive-backend .
+              docker stop backend  || true
+              docker rm backend    || true
+              docker run -d \
+                --restart=always \
+                --name backend \
+                --env-file .env \
+                -p 8000:8000 \
+                teamhive-backend
+            EOF
 
-      # 6) Publica o código no Web App via publish-profile
-      - name: Deploy to Azure WebApp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: '.'
-
-      # 7) Configura as suas variáveis de ambiente
-      - name: Configurar variáveis de ambiente
+  deploy-mqtt:
+    name: Deploy MQTT Broker
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar chave SSH
         run: |
-          az webapp config appsettings set \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --settings \
-              DATABASE_URL="${{ secrets.POSTGRESQL_CONNECTION_STRING }}" \
-              MONGO_URI="${{ secrets.COSMOS_CONNECTION_STRING }}" \
-              MQTT_BROKER_URI="${{ secrets.MQTT_BROKER_URI }}" \
-              SECRET_KEY="${{ secrets.SECRET_KEY }}"
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Mosquitto
+        run: |
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
+              docker pull eclipse-mosquitto:latest
+              docker stop mosquitto || true
+              docker rm mosquitto   || true
+              docker run -d \
+                --restart=always \
+                --name mosquitto \
+                -p 1883:1883 \
+                eclipse-mosquitto:latest
+            EOF
+
+  # Se você quiser também reiniciar os bancos:
+  deploy-postgres:
+    name: Deploy PostgreSQL
+    needs: deploy-mqtt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar chave SSH
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Postgres + PgBouncer
+        run: |
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
+              docker pull postgres:15-alpine
+              docker stop postgres-db || true
+              docker rm postgres-db   || true
+              docker run -d \
+                --restart=always \
+                --name postgres-db \
+                -p 5432:5432 \
+                -e POSTGRES_USER=postgres \
+                -e POSTGRES_PASSWORD=SenhaForte! \
+                -e POSTGRES_DB=api \
+                postgres:15-alpine
+
+              docker pull edoburu/pgbouncer:latest
+              docker stop pgbouncer || true
+              docker rm pgbouncer   || true
+              docker run -d \
+                --restart=always \
+                --name pgbouncer \
+                -p 6432:6432 \
+                -e DB_HOST=localhost \
+                -e DB_PORT=5432 \
+                -e DB_USER=postgres \
+                -e DB_PASSWORD=SenhaForte! \
+                edoburu/pgbouncer:latest
+            EOF
+
+  deploy-mongo:
+    name: Deploy MongoDB
+    needs: deploy-postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar chave SSH
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Mongo
+        run: |
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+              docker pull mongo:6.0
+              docker stop mongodb || true
+              docker rm mongodb   || true
+              docker run -d \
+                --restart=always \
+                --name mongodb \
+                -p 27017:27017 \
+                -e MONGO_INITDB_ROOT_USERNAME=admin \
+                -e MONGO_INITDB_ROOT_PASSWORD=SenhaForte! \
+                mongo:6.0
+            EOF
