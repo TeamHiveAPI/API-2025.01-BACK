@@ -14,40 +14,42 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Configurar chave SSH
+   - name: Criar .env com Secrets
         run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Copiar e iniciar container no Backend
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
-
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
-          cd /home/ubuntu/app
-
-          cat > .env << EOL
+          cat > .env <<EOF
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           MONGO_URI=${{ secrets.MONGO_URI }}
           MQTT_BROKER=${{ secrets.MQTT_BROKER }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           ACCESS_TOKEN_EXPIRE_MINUTES=30
-          EOL
-
-          docker build -t teamhive-backend .
-          docker stop backend  || true
-          docker rm backend    || true
-          docker run -d \
-            --restart=always \
-            --name backend \
-            --env-file .env \
-            -p 8000:8000 \
-            teamhive-backend
-
-          exit
           EOF
 
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Sincronizar código e .env (sem .git)
+        run: |
+          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
+            ./ ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
+
+      - name: Deploy remoto
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
+            cd /home/ubuntu/app
+            docker build -t teamhive-backend .
+            docker stop backend || true
+            docker rm backend   || true
+            docker run -d \
+              --restart=always \
+              --name backend \
+              --env-file .env \
+              -p 8000:8000 \
+              teamhive-backend
+            exit
+          EOF
+          
   deploy-mqtt:
     name: Deploy MQTT Broker
     needs: deploy-backend
