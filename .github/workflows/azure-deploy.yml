@@ -21,28 +21,31 @@ jobs:
 
       - name: Copiar e iniciar container no Backend
         run: |
-          # Sincroniza código sem transferir diretório .git
           rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
-            cd /home/ubuntu/app
 
-            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-            echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
-            echo "MQTT_BROKER=${{ secrets.MQTT_BROKER }}" >> .env
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> .env
-          
-            docker build -t teamhive-backend .
-            docker stop backend  || true
-            docker rm backend    || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
+          cd /home/ubuntu/app
+
+          cat > .env << EOL
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=30
+          EOL
+
+          docker build -t teamhive-backend .
+          docker stop backend  || true
+          docker rm backend    || true
+          docker run -d \
+            --restart=always \
+            --name backend \
+            --env-file .env \
+            -p 8000:8000 \
+            teamhive-backend
+
+          exit
           EOF
 
   deploy-mqtt:
@@ -58,16 +61,17 @@ jobs:
 
       - name: Atualizar Mosquitto
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
-            docker pull eclipse-mosquitto:latest
-            docker stop mosquitto || true
-            docker rm mosquitto   || true
-            docker run -d \
-              --restart=always \
-              --name mosquitto \
-              -p 1883:1883 \
-              eclipse-mosquitto:latest
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
+          docker pull eclipse-mosquitto:latest
+          docker stop mosquitto || true 
+          docker rm mosquitto   || true 
+          docker run -d \
+            --restart=always \
+            --name mosquitto \
+            -p 1883:1883 \
+            eclipse-mosquitto:latest
+
+          exit
           EOF
 
   deploy-postgres:
@@ -83,32 +87,33 @@ jobs:
 
       - name: Atualizar Postgres + PgBouncer
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-            docker pull postgres:15-alpine
-            docker stop postgres-db || true
-            docker rm postgres-db   || true
-            docker run -d \
-              --restart=always \
-              --name postgres-db \
-              -p 5432:5432 \
-              -e POSTGRES_USER=postgres \
-              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              -e POSTGRES_DB=api \
-              postgres:15-alpine
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
+          docker pull postgres:15-alpine
+          docker stop postgres-db || true 
+          docker rm postgres-db   || true 
+          docker run -d \
+            --restart=always \
+            --name postgres-db \
+            -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            -e POSTGRES_DB=api \
+            postgres:15-alpine
 
-            docker pull edoburu/pgbouncer:latest
-            docker stop pgbouncer || true
-            docker rm pgbouncer   || true
-            docker run -d \
-              --restart=always \
-              --name pgbouncer \
-              -p 6432:6432 \
-              -e DB_HOST=localhost \
-              -e DB_PORT=5432 \
-              -e DB_USER=postgres \
-              -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              edoburu/pgbouncer:latest
+          docker pull edoburu/pgbouncer:latest
+          docker stop pgbouncer || true 
+          docker rm pgbouncer   || true 
+          docker run -d \
+            --restart=always \
+            --name pgbouncer \
+            -p 6432:6432 \
+            -e DB_HOST=localhost \
+            -e DB_PORT=5432 \
+            -e DB_USER=postgres \
+            -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            edoburu/pgbouncer:latest
+
+          exit
           EOF
 
   deploy-mongo:
@@ -124,16 +129,18 @@ jobs:
 
       - name: Atualizar Mongo
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
-            docker pull mongo:6.0
-            docker stop mongodb || true
-            docker rm mongodb   || true
-            docker run -d \
-              --restart=always \
-              --name mongodb \
-              -p 27017:27017 \
-              -e MONGO_INITDB_ROOT_USERNAME=admin \
-              -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
-              mongo:6.0
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+
+          docker pull mongo:6.0
+          docker stop mongodb || true 
+          docker rm mongodb   || true 
+          docker run -d \
+            --restart=always \
+            --name mongodb \
+            -p 27017:27017 \
+            -e MONGO_INITDB_ROOT_USERNAME=admin \
+            -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+            mongo:6.0
+
+          exit
           EOF
