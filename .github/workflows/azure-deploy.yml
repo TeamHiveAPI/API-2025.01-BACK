@@ -14,7 +14,7 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-   - name: Criar .env com Secrets
+      - name: Criar .env com Secrets
         run: |
           cat > .env <<EOF
           DATABASE_URL=${{ secrets.DATABASE_URL }}
@@ -49,7 +49,7 @@ jobs:
               teamhive-backend
             exit
           EOF
-          
+
   deploy-mqtt:
     name: Deploy MQTT Broker
     needs: deploy-backend
