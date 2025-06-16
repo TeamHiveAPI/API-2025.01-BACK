@@ -53,9 +53,18 @@ def process_pending_documents():
             temp = doc.get("temp")
             umid = doc.get("umid")
             unixtime = doc.get("unixtime")
-
+            lux= doc.get("lux")
+            # Usa o offset fixo para o cálculo de chuva, sem depender de chuva_param
+            chuva = None
+            if doc.get("pulsos") is not None:
+                try:
+                    offset = 34  # Defina o valor fixo desejado aqui
+                except (TypeError, ValueError):
+                    offset = 0
+                chuva = doc.get("pulsos") * offset
+                chuva = chuva / 1000  # Converte mm³ para mm, se necessário
             # Validação básica
-            if None in (uid, temp, umid, unixtime):
+            if None in (uid, temp, umid, unixtime, lux, chuva):
                 logging.warning(f"Documento incompleto: {doc}. Marcando como processado.")
                 dados_coll.update_one(
                     {"_id": doc["_id"]},
@@ -76,6 +85,8 @@ def process_pending_documents():
             # Obtém IDs dos parâmetros
             temp_param = db.query(Parametro).filter_by(nome="temperatura").first()
             umid_param = db.query(Parametro).filter_by(nome="umidade").first()
+            lux_param = db.query(Parametro).filter_by(nome="luminosidade").first()
+            chuva_param = db.query(Parametro).filter_by(nome="chuva").first()
 
             if not temp_param or not umid_param:
                 logging.error("Parâmetros temperatura/umidade não configurados no banco")
@@ -94,13 +105,25 @@ def process_pending_documents():
                     parametro_id=umid_param.id,
                     valor=umid,
                     data_hora=datetime.fromtimestamp(unixtime)
+                ),
+                  Medida(
+                    estacao_id=estacao.id,
+                    parametro_id=lux_param.id,
+                    valor=lux,
+                    data_hora=datetime.fromtimestamp(unixtime)
+                ),
+                  Medida(
+                    estacao_id=estacao.id,
+                    parametro_id=chuva_param.id,
+                    valor=chuva,
+                    data_hora=datetime.fromtimestamp(unixtime)
                 )
             ]
 
             # Insere no PostgreSQL
             db.add_all(medidas)
             db.commit()
-            logging.info(f"Dados processados para estação {uid} - Temp: {temp}°C, Umid: {umid}%")
+            logging.info(f"Dados processados para estação {uid} - Temp: {temp}°C, Umid: {umid}%, Lux: {lux} lux, Chuva: {chuva} mm")
 
             # Marca como processado no MongoDB
             dados_coll.update_one(
