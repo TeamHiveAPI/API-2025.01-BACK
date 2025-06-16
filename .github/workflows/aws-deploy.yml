@@ -38,7 +38,7 @@ jobs:
         run: |
           ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
             cd /home/ubuntu/app
-            docker build -t teamhive-backend .
+            docker build --no-cache -t teamhive-backend .
             docker stop backend || true
             docker rm backend   || true
             docker run -d \
@@ -49,6 +49,7 @@ jobs:
               teamhive-backend
             exit
           EOF
+
 
   deploy-mqtt:
     name: Deploy MQTT Broker
