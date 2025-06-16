@@ -6,10 +6,98 @@ on:
       - main
 
 jobs:
+  deploy-postgres:
+    name: Deploy PostgreSQL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Postgres + PgBouncer
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
+            docker pull postgres:15-alpine
+            docker stop postgres-db || true
+            docker rm postgres-db   || true
+            docker run -d \
+              --restart=always \
+              --name postgres-db \
+              -p 5432:5432 \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              -e POSTGRES_DB=api \
+              -v pgdata:/var/lib/postgresql/data \
+              postgres:15-alpine
+
+            docker pull edoburu/pgbouncer:latest
+            docker stop pgbouncer || true
+            docker rm pgbouncer   || true
+            docker run -d \
+              --restart=always \
+              --name pgbouncer \
+              -p 6432:6432 \
+              -e DB_HOST=localhost \
+              -e DB_PORT=5432 \
+              -e DB_USER=postgres \
+              -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              edoburu/pgbouncer:latest
+          EOF
+
+  deploy-mongo:
+    name: Deploy MongoDB
+    needs: deploy-postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Mongo
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+            docker pull mongo:6.0
+            docker stop mongodb || true
+            docker rm mongodb   || true
+            docker run -d \
+              --restart=always \
+              --name mongodb \
+              -p 27017:27017 \
+              -e MONGO_INITDB_ROOT_USERNAME=admin \
+              -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+              -v mongodata:/data/db \
+              mongo:6.0
+          EOF
+
+  deploy-mqtt:
+    name: Deploy MQTT Broker
+    needs: deploy-mongo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Atualizar Mosquitto
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
+            docker pull eclipse-mosquitto:latest
+            docker stop mosquitto || true
+            docker rm mosquitto   || true
+            docker run -d \
+              --restart=always \
+              --name mosquitto \
+              -p 1883:1883 \
+              eclipse-mosquitto:latest
+          EOF
+
   deploy-backend:
     name: Deploy Backend
+    needs: deploy-mqtt
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -47,103 +135,4 @@ jobs:
               --env-file .env \
               -p 8000:8000 \
               teamhive-backend
-            exit
-          EOF
-
-
-  deploy-mqtt:
-    name: Deploy MQTT Broker
-    needs: deploy-backend
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configurar chave SSH
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Atualizar Mosquitto
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
-          docker pull eclipse-mosquitto:latest
-          docker stop mosquitto || true 
-          docker rm mosquitto   || true 
-          docker run -d \
-            --restart=always \
-            --name mosquitto \
-            -p 1883:1883 \
-            eclipse-mosquitto:latest
-
-          exit
-          EOF
-
-  deploy-postgres:
-    name: Deploy PostgreSQL
-    needs: deploy-mqtt
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configurar chave SSH
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Atualizar Postgres + PgBouncer
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-          docker pull postgres:15-alpine
-          docker stop postgres-db || true 
-          docker rm postgres-db   || true 
-          docker run -d \
-            --restart=always \
-            --name postgres-db \
-            -p 5432:5432 \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            -e POSTGRES_DB=api \
-            postgres:15-alpine
-
-          docker pull edoburu/pgbouncer:latest
-          docker stop pgbouncer || true 
-          docker rm pgbouncer   || true 
-          docker run -d \
-            --restart=always \
-            --name pgbouncer \
-            -p 6432:6432 \
-            -e DB_HOST=localhost \
-            -e DB_PORT=5432 \
-            -e DB_USER=postgres \
-            -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            edoburu/pgbouncer:latest
-
-          exit
-          EOF
-
-  deploy-mongo:
-    name: Deploy MongoDB
-    needs: deploy-postgres
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configurar chave SSH
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Atualizar Mongo
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
-
-          docker pull mongo:6.0
-          docker stop mongodb || true 
-          docker rm mongodb   || true 
-          docker run -d \
-            --restart=always \
-            --name mongodb \
-            -p 27017:27017 \
-            -e MONGO_INITDB_ROOT_USERNAME=admin \
-            -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
-            mongo:6.0
-
-          exit
           EOF
