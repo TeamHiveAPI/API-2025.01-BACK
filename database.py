@@ -1,30 +1,31 @@
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 
-# URL de conexão com o PostgreSQL
-DATABASE_URL = "postgresql://postgres:1234@localhost:5432/api"
+# URL de conexão assíncrona com o PostgreSQL
+DATABASE_URL = "postgresql+asyncpg://postgres:root@localhost:5432/api"
 
+# Criar a engine assíncrona
+async_engine = create_async_engine(DATABASE_URL, echo=True)
 
-# Criar a engine de conexão
-engine = create_engine(DATABASE_URL, echo=True)
-
-# Configurar a sessão
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Configurar a sessão assíncrona
+AsyncSessionLocal = async_sessionmaker(
+    async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 
 # Base para os modelos
 Base = declarative_base()
 
-# Função para criar as tabelas
-def create_tables():
-   
+# Função para criar as tabelas de forma assíncrona
+async def create_tables():
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    Base.metadata.create_all(bind=engine)
-
-# Função para gerenciar a sessão do banco
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Função para gerenciar a sessão assíncrona do banco
+async def get_async_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

@@ -1,0 +1,97 @@
+# /.github/workflows/ci.yml (Para o repositório Backend FastAPI - Revisado)
+
+name: Backend CI & Tests
+
+on:
+  push:
+    branches: [ develop ] # Ajuste para sua branch principal (ex: master)
+  pull_request:
+    branches: [ develop ] # Ajuste para sua branch principal
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Teste com múltiplas versões do Python (opcional)
+        python-version: ["3.10", "3.11"] 
+
+    # Opcional: Definir serviço PostgreSQL para teste
+    # Descomente as linhas abaixo se quiser testar contra PostgreSQL em vez de SQLite.
+    # Certifique-se de que a imagem, usuário, senha e DB correspondam ao que você espera.
+    # services:
+    #   postgres:
+    #     image: postgres:15
+    #     env:
+    #       POSTGRES_USER: testuser
+    #       POSTGRES_PASSWORD: testpassword
+    #       POSTGRES_DB: testdb
+    #     ports:
+    #       - 5432:5432
+    #     options: >- 
+    #       --health-cmd pg_isready
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip' # Habilita cache para dependências pip
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Certifique-se de que seu requirements.txt inclui pytest, httpx, etc.
+        # Se usar PostgreSQL, inclua asyncpg: pip install asyncpg
+        pip install -r requirements.txt 
+       
+
+    - name: Set up environment variables for testing
+      run: |
+        echo "APP_ENV=test" >> $GITHUB_ENV
+        # Use GitHub Secrets para variáveis sensíveis como SECRET_KEY
+        # Vá em Settings > Secrets and variables > Actions > New repository secret
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY || 'b3f5a8c9e2d147de8f91a6c3457d9234b6e8c1f6d2b7a4e5c3d1e8f7b9a2d6c8' }}" >> $GITHUB_ENV
+        echo "ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES || 30 }}" >> $GITHUB_ENV
+        
+        # Define DATABASE_URL - usa PostgreSQL se o serviço estiver ativo, senão SQLite
+        # if [ -n "${{ job.services.postgres.ports[5432] }}" ]; then
+        #   echo "DATABASE_URL=postgresql+asyncpg://testuser:testpassword@localhost:5432/testdb" >> $GITHUB_ENV
+        #   echo "Using PostgreSQL service for testing."
+        # else
+        #   echo "DATABASE_URL=sqlite+aiosqlite:///./test.db" >> $GITHUB_ENV
+        #   echo "Using SQLite file for testing."
+        # fi
+        # Simplificado: Deixe pytest.ini definir o padrão (SQLite) e só sobrescreva se o serviço PG estiver ativo.
+        if [ -n "${{ job.services.postgres.ports[5432] }}" ]; then
+          echo "DATABASE_URL=postgresql+asyncpg://testuser:testpassword@localhost:5432/testdb" >> $GITHUB_ENV
+          echo "Using PostgreSQL service for testing (overriding pytest.ini)."
+        else
+          echo "Using DATABASE_URL from pytest.ini (defaulting to SQLite)."
+        fi
+
+    # Opcional: Rodar migrações (se usar Alembic e PostgreSQL)
+    # - name: Run database migrations (if using PostgreSQL)
+    #   if: job.services.postgres.ports[5432]
+    #   run: alembic upgrade head # Ajuste o comando
+
+    - name: Run tests with pytest
+      run: |
+        # O Pytest lerá as variáveis do GITHUB_ENV, sobrescrevendo as de pytest.ini se definidas aqui.
+        # Se usar Poetry: poetry run pytest tests/
+        pytest tests/ 
+        # O comando `pytest` usará as opções do pytest.ini (incluindo coverage)
+
+    # Opcional: Upload coverage report
+    # - name: Upload coverage reports to Codecov
+    #   uses: codecov/codecov-action@v4
+    #   with:
+    #     token: ${{ secrets.CODECOV_TOKEN }} # Adicione o token como secret no GitHub
+    #     fail_ci_if_error: true
+
