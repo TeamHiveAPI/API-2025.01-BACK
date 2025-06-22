@@ -20,8 +20,8 @@ from routes import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    CreateTestUserAndToken().execute()
+    await create_tables()
+    await CreateTestUserAndToken().execute()
     yield
 
 app = FastAPI(
@@ -32,10 +32,7 @@ app = FastAPI(
 )
 
 # Configuração do CORS
-origins = [
-    "http://localhost:5173",  # Frontend do React
-    "http://localhost:8001"   #  BD
-]
+origins = ["*"]  # Permite todas as origens durante desenvolvimento
 
 app.add_middleware(
     CORSMiddleware,

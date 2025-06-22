@@ -43,7 +43,7 @@ class TipoParametro(Base):
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(50), index=True)
     descricao = Column(String)
-    json = Column(String(20))
+    json_data = Column(String(20))
 
 # Tabela: parametros (sensores)
 class Parametro(Base):

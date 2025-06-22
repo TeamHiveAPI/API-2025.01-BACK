@@ -1,21 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_async_db
 from models import Estacao, Parametro, AlertaDefinido, Usuario
 
 # Definição do roteador
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/contagem-entidades", response_model=dict)
-def dashboard(db: Session = Depends(get_db)) -> dict:
+async def dashboard(db: AsyncSession = Depends(get_async_db)) -> dict:
     try:
-        num_estacoes = db.query(Estacao).count()
+        from sqlalchemy import select, func
+        result = await db.execute(select(func.count()).select_from(Estacao))
+        num_estacoes = result.scalar()
 
-        num_sensores = db.query(Parametro).count()
+        result = await db.execute(select(func.count()).select_from(Parametro))
+        num_sensores = result.scalar()
 
-        num_alertas = db.query(AlertaDefinido).count()
+        result = await db.execute(select(func.count()).select_from(AlertaDefinido))
+        num_alertas = result.scalar()
 
-        num_usuarios = db.query(Usuario).count()
+        result = await db.execute(select(func.count()).select_from(Usuario))
+        num_usuarios = result.scalar()
 
         # Retorno das informações
         return {

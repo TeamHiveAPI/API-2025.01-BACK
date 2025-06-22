@@ -11,10 +11,10 @@ BASE_URL = "http://localhost:8000"  # ajuste conforme o endereço do seu backend
 
 def cadastrar_tipos_parametros():
     tipos_parametros = [
-        {"nome": "Temperatura", "descricao": "Mede a temperatura ambiente", "json": "temp"},
-        {"nome": "Vento", "descricao": "Mede a velocidade do vento", "json": "vento"},
-        {"nome": "Umidade", "descricao": "Mede a umidade relativa do ar", "json": "umi"},
-        {"nome": "Pressão", "descricao": "Mede a pressão atmosférica", "json": "atm"}
+        {"nome": "Temperatura", "descricao": "Mede a temperatura ambiente", "json_data": "temp"},
+        {"nome": "Vento", "descricao": "Mede a velocidade do vento", "json_data": "vento"},
+        {"nome": "Umidade", "descricao": "Mede a umidade relativa do ar", "json_data": "umi"},
+        {"nome": "Pressão", "descricao": "Mede a pressão atmosférica", "json_data": "atm"}
     ]
 
     for tipo in tipos_parametros:

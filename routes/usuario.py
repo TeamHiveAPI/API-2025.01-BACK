@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
-from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_async_db
 from models import Usuario
 from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioUpdate, UsuarioPublicResponse
 from core.security import get_current_user, get_password_hash, require_user_nivel
@@ -14,7 +14,7 @@ from schemas.token import Token
 
 router = APIRouter(prefix="/usuarios", tags=["usuários"])
 @router.post("/", response_model=Token)
-def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_db)):
+async def create_usuario(usuario_input: UsuarioCreateInput, db: AsyncSession = Depends(get_async_db)):
     usuario_dict = usuario_input.dict()
     usuario_dict["nivel_acesso"] = "ADMINISTRADOR"
     usuario_dict["data_criacao"] = datetime.now()
@@ -22,8 +22,8 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
 
     db_usuario = Usuario(**usuario_dict)
     db.add(db_usuario)
-    db.commit()
-    db.refresh(db_usuario)
+    await db.commit()
+    await db.refresh(db_usuario)
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -45,11 +45,13 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
     }
 
 @router.get("/", response_model=list[UsuarioPublicResponse])
-def list_usuarios(
-    db: Session = Depends(get_db),
+async def list_usuarios(
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuarios = db.query(Usuario).all()
+    from sqlalchemy import select
+    result = await db.execute(select(Usuario))
+    db_usuarios = result.scalars().all()
     return [
         UsuarioPublicResponse(
             id=usuario.id,
@@ -74,11 +76,15 @@ async def read_current_user(
     )
 
 @router.get("/{usuario_id}", response_model=UsuarioPublicResponse)
-def get_usuario(
-    usuario_id: int, db: Session = Depends(get_db),
+async def get_usuario(
+    usuario_id: int, db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Usuario).where(Usuario.id == usuario_id)
+    )
+    db_usuario = result.scalar_one_or_none()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return UsuarioPublicResponse(
@@ -90,12 +96,16 @@ def get_usuario(
     )
 
 @router.put("/{usuario_id}", response_model=UsuarioResponse)
-def update_usuario(
+async def update_usuario(
     usuario_id: int, usuario: UsuarioUpdate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Usuario).where(Usuario.id == usuario_id)
+    )
+    db_usuario = result.scalar_one_or_none()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     
@@ -106,17 +116,21 @@ def update_usuario(
     for key, value in update_data.items():
         setattr(db_usuario, key, value)
     
-    db.commit()
-    db.refresh(db_usuario)
+    await db.commit()
+    await db.refresh(db_usuario)
     return db_usuario
 
 @router.delete("/{usuario_id}")
-def delete_usuario(
+async def delete_usuario(
     usuario_id: int, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.id == usuario_id).first()
+    from sqlalchemy import select
+    result = await db.execute(
+        select(UsuarioModel).where(UsuarioModel.id == usuario_id)
+    )
+    db_usuario = result.scalar_one_or_none()
     
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -124,6 +138,6 @@ def delete_usuario(
     if db_usuario.id == current_user.id:
         raise HTTPException(status_code=403, detail="Você não pode se excluir.")
 
-    db.delete(db_usuario)
-    db.commit()
+    await db.delete(db_usuario)
+    await db.commit()
     return {"message": "Usuário deletado com sucesso"}

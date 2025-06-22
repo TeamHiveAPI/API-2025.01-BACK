@@ -4,7 +4,7 @@ from typing import Optional
 class TipoParametroCreate(BaseModel):
     nome: str
     descricao: str
-    json: str
+    json_data: str
 
 class TipoParametroResponse(TipoParametroCreate):
     id: int
@@ -15,4 +15,4 @@ class TipoParametroResponse(TipoParametroCreate):
 class TipoParametroUpdate(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
-    json: Optional[str] = None
+    json_data: Optional[str] = None

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_async_db
 from models import AlertaDefinido, Estacao, Parametro, Usuario, Alerta
 import spacy
 
@@ -33,26 +34,32 @@ def interpretar_entrada(query: str):
     return {"tipo": tipo_detectado or "multiplo", "filtro": filtro.strip()}
 
 
-def buscar_estacoes_por_nome(db: Session, termo: str):
-    return db.query(Estacao).filter(Estacao.nome.ilike(f"%{termo}%")).all()
+async def buscar_estacoes_por_nome(db: AsyncSession, termo: str):
+    result = await db.execute(db.query(Estacao).filter(Estacao.nome.ilike(f"%{termo}%")))
+    return result.scalars().all()
 
-def buscar_sensores_por_nome(db: Session, termo: str):
-    return db.query(Parametro).filter(Parametro.nome.ilike(f"%{termo}%")).all()
+async def buscar_sensores_por_nome(db: AsyncSession, termo: str):
+    result = await db.execute(db.query(Parametro).filter(Parametro.nome.ilike(f"%{termo}%")))
+    return result.scalars().all()
 
-def buscar_usuarios_por_nome(db: Session, termo: str):
-    return db.query(Usuario).filter(Usuario.nome.ilike(f"%{termo}%")).all()
+async def buscar_usuarios_por_nome(db: AsyncSession, termo: str):
+    result = await db.execute(db.query(Usuario).filter(Usuario.nome.ilike(f"%{termo}%")))
+    return result.scalars().all()
 
-def buscar_alertas_por_titulo(db: Session, termo: str):
+async def buscar_alertas_por_titulo(db: AsyncSession, termo: str):
     termo = termo.lower()
 
-    alertas = db.query(AlertaDefinido).all()
+    result = await db.execute(db.query(AlertaDefinido))
+    alertas = result.scalars().all()
 
+    result = await db.execute(db.query(Parametro))
     parametros_map = {
-        p.id: p for p in db.query(Parametro).all()
+        p.id: p for p in result.scalars().all()
     }
 
+    result = await db.execute(db.query(Estacao))
     estacoes_map = {
-        e.id: e for e in db.query(Estacao).all()
+        e.id: e for e in result.scalars().all()
     }
 
     resultados = []
@@ -85,7 +92,7 @@ def buscar_alertas_por_titulo(db: Session, termo: str):
 
 
 @router.get("/pesquisa")
-def pesquisa(query: str = Query(...), db: Session = Depends(get_db)):
+async def pesquisa(query: str = Query(...), db: AsyncSession = Depends(get_async_db)):
     resultado = interpretar_entrada(query)
     tipo = resultado["tipo"]
     filtro = resultado["filtro"]
@@ -98,23 +105,23 @@ def pesquisa(query: str = Query(...), db: Session = Depends(get_db)):
         }
 
     if tipo == "estacao":
-        dados = buscar_estacoes_por_nome(db, filtro)
+        dados = await buscar_estacoes_por_nome(db, filtro)
         return {"tipo": tipo, "resultados": dados}
     elif tipo == "sensor":
-        dados = buscar_sensores_por_nome(db, filtro)
+        dados = await buscar_sensores_por_nome(db, filtro)
         return {"tipo": tipo, "resultados": dados}
     elif tipo == "usuario":
-        dados = buscar_usuarios_por_nome(db, filtro)
+        dados = await buscar_usuarios_por_nome(db, filtro)
         return {"tipo": tipo, "resultados": dados}
     elif tipo == "alerta_definido":
-        dados = buscar_alertas_por_titulo(db, filtro)
+        dados = await buscar_alertas_por_titulo(db, filtro)
         return {"tipo": tipo, "resultados": dados}
 
     resultados_multiplo = {
-        "estacao": buscar_estacoes_por_nome(db, filtro),
-        "sensor": buscar_sensores_por_nome(db, filtro),
-        "usuario": buscar_usuarios_por_nome(db, filtro),
-        "alerta_definido": buscar_alertas_por_titulo(db, filtro)
+        "estacao": await buscar_estacoes_por_nome(db, filtro),
+        "sensor": await buscar_sensores_por_nome(db, filtro),
+        "usuario": await buscar_usuarios_por_nome(db, filtro),
+        "alerta_definido": await buscar_alertas_por_titulo(db, filtro)
     }
 
     return {

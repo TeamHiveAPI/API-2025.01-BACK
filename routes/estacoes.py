@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from database import get_async_db
 from models import Estacao, EstacaoParametro, Parametro
 from schemas.estacao import EstacaoCreate, EstacaoResponse, EstacaoUpdate
 from typing import List
@@ -10,9 +11,9 @@ from models import Usuario as UsuarioModel
 router = APIRouter(prefix="/estacoes", tags=["estações"])
 
 @router.post("/", response_model=EstacaoResponse)
-def create_estacao(
+async def create_estacao(
     estacao: EstacaoCreate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     try:
@@ -30,18 +31,39 @@ def create_estacao(
             status=estacao.status,
         )
         db.add(db_estacao)
-        db.commit()
-        db.refresh(db_estacao)
+        await db.commit()
+        await db.refresh(db_estacao)
 
         # Insere os sensores na tabela associativa, se fornecidos
         if estacao.sensores:
             for sensor_id in estacao.sensores:
-                sensor = db.query(Parametro).filter(Parametro.id == sensor_id).first()
+                # Verifica se o sensor existe
+                result = await db.execute(
+                    select(Parametro).where(Parametro.id == sensor_id)
+                )
+                sensor = result.scalar_one_or_none()
                 if sensor is None:
+                    await db.rollback()
                     raise HTTPException(status_code=404, detail=f"Sensor (parâmetro) com ID {sensor_id} não encontrado.")
+                
+                # Cria a associação
                 assoc = EstacaoParametro(estacao_id=db_estacao.id, parametro_id=sensor_id)
                 db.add(assoc)
-            db.commit()
+            
+            try:
+                await db.commit()
+                await db.refresh(db_estacao)
+            except Exception as e:
+                await db.rollback()
+                raise HTTPException(status_code=500, detail=f"Erro ao associar sensores: {str(e)}")
+
+        # Carrega os parâmetros relacionados
+        result = await db.execute(
+            select(Parametro)
+            .join(EstacaoParametro)
+            .where(EstacaoParametro.estacao_id == db_estacao.id)
+        )
+        parametros = result.scalars().all()
 
         # Inclui os IDs dos sensores na resposta
         return EstacaoResponse(
@@ -63,45 +85,60 @@ def create_estacao(
                     "nome": sensor.nome,
                     "unidade": sensor.unidade
                 }
-                for sensor in db_estacao.parametros
+                for sensor in parametros
             ]
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{estacao_id}", response_model=EstacaoResponse)
-def update_estacao(
+async def update_estacao(
     estacao_id: int, 
     estacao: EstacaoUpdate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     try:
-        db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
+        result = await db.execute(
+            select(Estacao).where(Estacao.id == estacao_id)
+        )
+        db_estacao = result.scalar_one_or_none()
         if not db_estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
 
         # Atualiza os campos básicos da estação
         for key, value in estacao.dict(exclude={"sensores"}, exclude_unset=True).items():
             setattr(db_estacao, key, value)
-        db.commit()
+        await db.commit()
 
         # Remove as associações atuais de sensores
-        db.query(EstacaoParametro).filter(EstacaoParametro.estacao_id == estacao_id).delete()
-        db.commit()
+        await db.execute(
+            delete(EstacaoParametro).where(EstacaoParametro.estacao_id == estacao_id)
+        )
+        await db.commit()
 
         # Adiciona as novas associações de sensores
         if estacao.sensores:
             for sensor_id in estacao.sensores:
-                sensor = db.query(Parametro).filter(Parametro.id == sensor_id).first()
+                result = await db.execute(
+                    select(Parametro).where(Parametro.id == sensor_id)
+                )
+                sensor = result.scalar_one_or_none()
                 if sensor is None:
                     raise HTTPException(status_code=404, detail=f"Sensor (parâmetro) com ID {sensor_id} não encontrado.")
                 assoc = EstacaoParametro(estacao_id=estacao_id, parametro_id=sensor_id)
                 db.add(assoc)
-            db.commit()
+            await db.commit()
 
-        db.refresh(db_estacao)
+        # Carrega os parâmetros relacionados
+        result = await db.execute(
+            select(Parametro)
+            .join(EstacaoParametro)
+            .where(EstacaoParametro.estacao_id == db_estacao.id)
+        )
+        parametros = result.scalars().all()
+
         return EstacaoResponse(
             id=db_estacao.id,
             uid=db_estacao.uid,
@@ -121,19 +158,30 @@ def update_estacao(
                     "nome": sensor.nome,
                     "unidade": sensor.unidade
                 }
-                for sensor in db_estacao.parametros
+                for sensor in parametros
             ]
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[EstacaoResponse])
-def read_estacoes(db: Session = Depends(get_db)):
+async def read_estacoes(db: AsyncSession = Depends(get_async_db)):
     try:
-        estacoes = db.query(Estacao).all()
+        # Busca todas as estações
+        result = await db.execute(select(Estacao))
+        estacoes = result.scalars().all()
+        
         estacoes_response = []
         for estacao in estacoes:
+            # Carrega os parâmetros para cada estação
+            params_result = await db.execute(
+                select(Parametro)
+                .join(EstacaoParametro)
+                .where(EstacaoParametro.estacao_id == estacao.id)
+            )
+            parametros = params_result.scalars().all()
+            
             estacao_data = EstacaoResponse(
                 id=estacao.id,
                 uid=estacao.uid,
@@ -153,7 +201,7 @@ def read_estacoes(db: Session = Depends(get_db)):
                         "nome": sensor.nome,
                         "unidade": sensor.unidade
                     }
-                    for sensor in estacao.parametros
+                    for sensor in parametros
                 ]
             )
             estacoes_response.append(estacao_data)
@@ -162,31 +210,47 @@ def read_estacoes(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{estacao_id}", status_code=204)
-def delete_estacao(
+async def delete_estacao(
     estacao_id: int, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     try:
-        db_estacao = db.query(Estacao).filter(Estacao.id == estacao_id).first()
+        result = await db.execute(
+            select(Estacao).where(Estacao.id == estacao_id)
+        )
+        db_estacao = result.scalar_one_or_none()
         if not db_estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
         # Remove as associações na tabela de ligação
-        db.query(EstacaoParametro).filter(EstacaoParametro.estacao_id == estacao_id).delete()
-        db.delete(db_estacao)
-        db.commit()
+        await db.execute(
+            delete(EstacaoParametro).where(EstacaoParametro.estacao_id == estacao_id)
+        )
+        await db.delete(db_estacao)
+        await db.commit()
         return None
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/uid/{uid}", response_model=EstacaoResponse)
-def read_estacao_by_uid(uid: str, db: Session = Depends(get_db)):
+async def read_estacao_by_uid(uid: str, db: AsyncSession = Depends(get_async_db)):
     try:
-        estacao = db.query(Estacao).filter(Estacao.uid == uid).first()
+        result = await db.execute(
+            select(Estacao).where(Estacao.uid == uid)
+        )
+        estacao = result.scalar_one_or_none()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
         
+        # Carrega os parâmetros relacionados
+        params_result = await db.execute(
+            select(Parametro)
+            .join(EstacaoParametro)
+            .where(EstacaoParametro.estacao_id == estacao.id)
+        )
+        parametros = params_result.scalars().all()
+
         return EstacaoResponse(
             id=estacao.id,
             uid=estacao.uid,
@@ -206,7 +270,7 @@ def read_estacao_by_uid(uid: str, db: Session = Depends(get_db)):
                     "nome": sensor.nome,
                     "unidade": sensor.unidade
                 }
-                for sensor in estacao.parametros
+                for sensor in parametros
             ]
         )
     except Exception as e:
