@@ -1,46 +1,45 @@
-
-name: 🚀 Deploy AWS EC2 (AWS Academy)
+# .github/workflows/deploy-aws-ec2.yml
+name: 🚀 Deploy AWS EC2 Instances
 
 on:
   push:
     branches:
       - main
 
-jobs:
-  deploy-backend:
-    name: Deploy Backend
-    runs-on: ubuntu-latest
+env:
+  # variável fixa no .env, não precisa ser secret
+  ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
+jobs:
+  # Backend Instance 1
+  deploy-backend-1:
+    name: Deploy Backend (Instance 1)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Criar .env com Secrets
+      - name: Criar .env
         run: |
           cat > .env <<EOF
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           MONGO_URI=${{ secrets.MONGO_URI }}
           MQTT_BROKER=${{ secrets.MQTT_BROKER }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
-          ACCESS_TOKEN_EXPIRE_MINUTES=30
+          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
           EOF
+
       - name: Configurar SSH key
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
-      - name: Sincronizar código e .env (sem .git) 1
+
+      - name: Sincronizar código na instância 1
         run: |
           rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
-      - name: Sincronizar código e .env (sem .git) 2
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_2 }}:/home/ubuntu/app
-      - name: Sincronizar código e .env (sem .git) 3
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_3 }}:/home/ubuntu/app
-      - name: Deploy remoto na instancia 1
+
+      - name: Deploy remoto na instância 1
         run: |
           ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
             cd /home/ubuntu/app
@@ -55,7 +54,26 @@ jobs:
               teamhive-backend
             exit
           EOF
-      - name: Deploy na instância 2
+
+  # Backend Instance 2
+  deploy-backend-2:
+    name: Deploy Backend (Instance 2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure .env, SSH e rsync
+        run: |
+          cat > .env <<EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
+          EOF
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem && chmod 400 academy-key.pem
+          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
+            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_2 }}:/home/ubuntu/app
+      - name: Deploy remoto na instância 2
         run: |
           ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_2 }} << 'EOF'
             cd /home/ubuntu/app
@@ -70,7 +88,26 @@ jobs:
               teamhive-backend
             exit
           EOF
-      - name: Deploy na instância 3
+
+  # Backend Instance 3
+  deploy-backend-3:
+    name: Deploy Backend (Instance 3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure .env, SSH e rsync
+        run: |
+          cat > .env <<EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
+          EOF
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem && chmod 400 academy-key.pem
+          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
+            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_3 }}:/home/ubuntu/app
+      - name: Deploy remoto na instância 3
         run: |
           ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_3 }} << 'EOF'
             cd /home/ubuntu/app
@@ -85,41 +122,92 @@ jobs:
               teamhive-backend
             exit
           EOF
-          
+
+  # MQTT Broker
+  deploy-mqtt:
+    name: Deploy MQTT Broker
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-1, deploy-backend-2, deploy-backend-3]
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+      - name: Atualizar Mosquitto
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
+            docker pull eclipse-mosquitto:latest
+            docker stop mosquitto || true
+            docker rm mosquitto   || true
+            docker run -d \
+              --restart=always \
+              --name mosquitto \
+              -p 1883:1883 \
+              eclipse-mosquitto:latest
+            exit
+          EOF
+
+  # PostgreSQL + PgBouncer
   deploy-postgres:
     name: Deploy PostgreSQL
     runs-on: ubuntu-latest
-
+    needs: deploy-mqtt
     steps:
-      - name: Configurar chave SSH
+      - name: Configurar SSH key
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
       - name: Atualizar Postgres + PgBouncer
         run: |
           ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-          docker pull postgres:15-alpine
-          docker stop postgres-db || true 
-          docker rm postgres-db   || true 
-          docker run -d \
-            --restart=always \
-            --name postgres-db \
-            -p 5432:5432 \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            -e POSTGRES_DB=api \
-            postgres:15-alpine
-          docker pull edoburu/pgbouncer:latest
-          docker stop pgbouncer || true 
-          docker rm pgbouncer   || true 
-          docker run -d \
-            --restart=always \
-            --name pgbouncer \
-            -p 6432:6432 \
-            -e DB_HOST=localhost \
-            -e DB_PORT=5432 \
-            -e DB_USER=postgres \
-            -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            edoburu/pgbouncer:latest
-          exit
+            docker pull postgres:15-alpine
+            docker stop postgres-db || true
+            docker rm postgres-db   || true
+            docker run -d \
+              --restart=always \
+              --name postgres-db \
+              -p 5432:5432 \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              -e POSTGRES_DB=api \
+              postgres:15-alpine
+            docker pull edoburu/pgbouncer:latest
+            docker stop pgbouncer || true
+            docker rm pgbouncer   || true
+            docker run -d \
+              --restart=always \
+              --name pgbouncer \
+              -p 6432:6432 \
+              -e DB_HOST=localhost \
+              -e DB_PORT=5432 \
+              -e DB_USER=postgres \
+              -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              edoburu/pgbouncer:latest
+            exit
+          EOF
+
+  # MongoDB
+  deploy-mongo:
+    name: Deploy MongoDB
+    runs-on: ubuntu-latest
+    needs: deploy-postgres
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+      - name: Atualizar MongoDB
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+            docker pull mongo:6.0
+            docker stop mongodb || true
+            docker rm mongodb   || true
+            docker run -d \
+              --restart=always \
+              --name mongodb \
+              -p 27017:27017 \
+              -e MONGO_INITDB_ROOT_USERNAME=admin \
+              -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+              mongo:6.0
+            exit
           EOF
