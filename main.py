@@ -59,3 +59,7 @@ app.include_router(pesquisa.router)
 @app.get("/")
 def read_root():
     return {"message": "API rodando e tabelas criadas no PostgreSQL!"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
