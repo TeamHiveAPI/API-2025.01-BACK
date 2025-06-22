@@ -46,32 +46,9 @@ jobs:
               teamhive-backend
             exit
           EOF
-  deploy-mqtt:
-    name: Deploy MQTT Broker
-    needs: deploy-backend
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configurar chave SSH
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-      - name: Atualizar Mosquitto
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
-          docker pull eclipse-mosquitto:latest
-          docker stop mosquitto || true 
-          docker rm mosquitto   || true 
-          docker run -d \
-            --restart=always \
-            --name mosquitto \
-            -p 1883:1883 \
-            eclipse-mosquitto:latest
-          exit
-          EOF
+          
   deploy-postgres:
     name: Deploy PostgreSQL
-    needs: deploy-mqtt
     runs-on: ubuntu-latest
 
     steps:
@@ -105,30 +82,5 @@ jobs:
             -e DB_USER=postgres \
             -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
             edoburu/pgbouncer:latest
-          exit
-          EOF
-  deploy-mongo:
-    name: Deploy MongoDB
-    needs: deploy-postgres
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configurar chave SSH
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-      - name: Atualizar Mongo
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
-          docker pull mongo:6.0
-          docker stop mongodb || true 
-          docker rm mongodb   || true 
-          docker run -d \
-            --restart=always \
-            --name mongodb \
-            -p 27017:27017 \
-            -e MONGO_INITDB_ROOT_USERNAME=admin \
-            -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
-            mongo:6.0
           exit
           EOF
