@@ -7,8 +7,14 @@ on:
 
 jobs:
   deploy-backend:
-    name: Deploy Backend
+    name: Deploy Backend on ${{ matrix.backend_ip }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        backend_ip:
+          - ${{ secrets.EC2_BACKEND_IP_1 }}
+          - ${{ secrets.EC2_BACKEND_IP_2 }}
+          - ${{ secrets.EC2_BACKEND_IP_3 }}
 
     steps:
       - name: Checkout do código
@@ -23,35 +29,24 @@ jobs:
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           ACCESS_TOKEN_EXPIRE_MINUTES=30
           EOF
+
       - name: Configurar SSH key
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
-      - name: Sincronizar código e .env (sem .git)
+
+      - name: Sincronizar código e .env
         run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
-      - name: Deploy remoto na instancia 1
+          rsync -av --delete --exclude='.git' \
+            -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
+            ./ ubuntu@${{ matrix.backend_ip }}:/home/ubuntu/app
+
+      - name: Deploy remoto
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ matrix.backend_ip }} << 'EOF'
             cd /home/ubuntu/app
             docker build --no-cache -t teamhive-backend .
-            docker stop backend || true
-            docker rm backend   || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
-          EOF
-      - name: Deploy na instância 2
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_2 }} << 'EOF'
-            cd /home/ubuntu/app
-            docker build --no-cache -t teamhive-backend .
-            docker stop backend || true
-            docker rm backend   || true
+            docker rm -f backend || true
             docker run -d \
               --restart=always \
               --name backend \
@@ -60,22 +55,6 @@ jobs:
               teamhive-backend
           EOF
 
-      - name: Deploy na instância 3
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_3 }} << 'EOF'
-            cd /home/ubuntu/app
-            docker build --no-cache -t teamhive-backend .
-            docker stop backend || true
-            docker rm backend   || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
-            exit
-          EOF
-          
   deploy-postgres:
     name: Deploy PostgreSQL
     runs-on: ubuntu-latest
@@ -85,31 +64,33 @@ jobs:
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
+
       - name: Atualizar Postgres + PgBouncer
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-          docker pull postgres:15-alpine
-          docker stop postgres-db || true 
-          docker rm postgres-db   || true 
-          docker run -d \
-            --restart=always \
-            --name postgres-db \
-            -p 5432:5432 \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            -e POSTGRES_DB=api \
-            postgres:15-alpine
-          docker pull edoburu/pgbouncer:latest
-          docker stop pgbouncer || true 
-          docker rm pgbouncer   || true 
-          docker run -d \
-            --restart=always \
-            --name pgbouncer \
-            -p 6432:6432 \
-            -e DB_HOST=localhost \
-            -e DB_PORT=5432 \
-            -e DB_USER=postgres \
-            -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            edoburu/pgbouncer:latest
+          ssh -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
+            docker pull postgres:15-alpine
+            docker stop postgres-db || true 
+            docker rm postgres-db   || true 
+            docker run -d \
+              --restart=always \
+              --name postgres-db \
+              -p 5432:5432 \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              -e POSTGRES_DB=api \
+              postgres:15-alpine
+
+            docker pull edoburu/pgbouncer:latest
+            docker stop pgbouncer || true 
+            docker rm pgbouncer   || true 
+            docker run -d \
+              --restart=always \
+              --name pgbouncer \
+              -p 6432:6432 \
+              -e DB_HOST=localhost \
+              -e DB_PORT=5432 \
+              -e DB_USER=postgres \
+              -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              edoburu/pgbouncer:latest
           exit
           EOF
