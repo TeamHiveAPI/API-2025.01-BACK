@@ -31,9 +31,38 @@ jobs:
         run: |
           rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP }}:/home/ubuntu/app
-      - name: Deploy remoto
+      - name: Deploy remoto na instancia 1
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP }} << 'EOF'
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
+            cd /home/ubuntu/app
+            docker build --no-cache -t teamhive-backend .
+            docker stop backend || true
+            docker rm backend   || true
+            docker run -d \
+              --restart=always \
+              --name backend \
+              --env-file .env \
+              -p 8000:8000 \
+              teamhive-backend
+          EOF
+      - name: Deploy na instância 2
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_2 }} << 'EOF'
+            cd /home/ubuntu/app
+            docker build --no-cache -t teamhive-backend .
+            docker stop backend || true
+            docker rm backend   || true
+            docker run -d \
+              --restart=always \
+              --name backend \
+              --env-file .env \
+              -p 8000:8000 \
+              teamhive-backend
+          EOF
+
+      - name: Deploy na instância 3
+        run: |
+          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_3 }} << 'EOF'
             cd /home/ubuntu/app
             docker build --no-cache -t teamhive-backend .
             docker stop backend || true
