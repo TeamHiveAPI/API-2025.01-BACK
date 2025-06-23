@@ -50,10 +50,21 @@ jobs:
       - name: Instalar e configurar MongoDB na EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+            # 1) Importar chave GPG do MongoDB
+            wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+
+            # 2) Adicionar o repositório oficial (usa o codename dinâmico: focal, jammy etc.)
+            CODENAME=$(lsb_release -cs)
+            echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu \$CODENAME/mongodb-org/6.0 multiverse" \
+              | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+            # 3) Atualizar e instalar
             sudo apt update
-            sudo apt install -y mongodb
-            sudo systemctl enable mongodb
-            sudo systemctl start mongodb
+            sudo apt install -y mongodb-org
+
+            # 4) Habilitar e iniciar o serviço
+            sudo systemctl enable mongod
+            sudo systemctl start mongod
           EOF
 
   deploy-mqtt:
