@@ -1,4 +1,4 @@
-name: 🚀 Deploy AWS EC2 Instances
+name: 🚀 Deploy AWS EC2 Instances (Sem Docker)
 
 on:
   push:
@@ -9,225 +9,28 @@ env:
   ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
 jobs:
-  deploy-backend-1:
-    name: Deploy Backend (Instance 1)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: ~/.builder/cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-
-      - name: Criar .env
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
-          EOF
-
-      - name: Configurar SSH key
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Sincronizar código na instância 1
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
-
-      - name: Build & Deploy na instância 1
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
-            cd /home/ubuntu/app
-            # build com cache local via BuildKit
-            DOCKER_BUILDKIT=1 docker buildx build \
-              --cache-from=type=local,src=~/.builder/cache \
-              --cache-to=type=local,dest=~/.builder/cache-new,mode=max \
-              --load \
-              -t teamhive-backend .
-            # atualiza o cache
-            rm -rf ~/.builder/cache && mv ~/.builder/cache-new ~/.builder/cache
-
-            docker stop backend || true
-            docker rm backend   || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
-            exit
-          EOF
-
-  deploy-backend-2:
-    name: Deploy Backend (Instance 2)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v2
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: ~/.builder/cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-      - name: Configurar .env e SSH
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
-          EOF
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem && chmod 400 academy-key.pem
-      - name: Sincronizar código na instância 2
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_2 }}:/home/ubuntu/app
-      - name: Build & Deploy na instância 2
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_2 }} << 'EOF'
-            cd /home/ubuntu/app
-            DOCKER_BUILDKIT=1 docker buildx build \
-              --cache-from=type=local,src=~/.builder/cache \
-              --cache-to=type=local,dest=~/.builder/cache-new,mode=max \
-              --load \
-              -t teamhive-backend .
-            rm -rf ~/.builder/cache && mv ~/.builder/cache-new ~/.builder/cache
-
-            docker stop backend || true
-            docker rm backend   || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
-            exit
-          EOF
-
-  deploy-backend-3:
-    name: Deploy Backend (Instance 3)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v2
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: ~/.builder/cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-      - name: Configurar .env e SSH
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          MQTT_BROKER=${{ secrets.MQTT_BROKER }}
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
-          EOF
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem && chmod 400 academy-key.pem
-      - name: Sincronizar código na instância 3
-        run: |
-          rsync -av --delete --exclude='.git' -e "ssh -i academy-key.pem -o StrictHostKeyChecking=no" \
-            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_3 }}:/home/ubuntu/app
-      - name: Build & Deploy na instância 3
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_BACKEND_IP_3 }} << 'EOF'
-            cd /home/ubuntu/app
-            DOCKER_BUILDKIT=1 docker buildx build \
-              --cache-from=type=local,src=~/.builder/cache \
-              --cache-to=type=local,dest=~/.builder/cache-new,mode=max \
-              --load \
-              -t teamhive-backend .
-            rm -rf ~/.builder/cache && mv ~/.builder/cache-new ~/.builder/cache
-
-            docker stop backend || true
-            docker rm backend   || true
-            docker run -d \
-              --restart=always \
-              --name backend \
-              --env-file .env \
-              -p 8000:8000 \
-              teamhive-backend
-            exit
-          EOF
-
-  deploy-mqtt:
-    name: Deploy MQTT Broker
-    runs-on: ubuntu-latest
-    needs: [deploy-backend-1, deploy-backend-2, deploy-backend-3]
-    steps:
-      - name: Configurar SSH key
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-      - name: Atualizar Mosquitto
-        run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
-            docker pull eclipse-mosquitto:latest
-            docker stop mosquitto || true
-            docker rm mosquitto   || true
-            docker run -d \
-              --restart=always \
-              --name mosquitto \
-              -p 1883:1883 \
-              eclipse-mosquitto:latest
-            exit
-          EOF
-
   deploy-postgres:
     name: Deploy PostgreSQL
     runs-on: ubuntu-latest
-    needs: deploy-mqtt
     steps:
       - name: Configurar SSH key
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
-      - name: Atualizar Postgres + PgBouncer
+
+      - name: Instalar e configurar PostgreSQL na EC2
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-            docker pull postgres:15-alpine
-            docker stop postgres-db || true
-            docker rm postgres-db   || true
-            docker run -d \
-              --restart=always \
-              --name postgres-db \
-              -p 5432:5432 \
-              -e POSTGRES_USER=postgres \
-              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              -e POSTGRES_DB=api \
-              postgres:15-alpine
-            docker pull edoburu/pgbouncer:latest
-            docker stop pgbouncer || true
-            docker rm pgbouncer   || true
-            docker run -d \
-              --restart=always \
-              --name pgbouncer \
-              -p 6432:6432 \
-              -e DB_HOST=localhost \
-              -e DB_PORT=5432 \
-              -e DB_USER=postgres \
-              -e DB_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              edoburu/pgbouncer:latest
-            exit
+          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
+            # atualiza o apt e instala PostgreSQL
+            sudo apt update
+            sudo apt install -y postgresql postgresql-contrib
+            # habilita e inicia o serviço
+            sudo systemctl enable postgresql
+            sudo systemctl start postgresql
+            # ajusta senha do usuário postgres
+            sudo -u postgres psql -c "ALTER USER postgres PASSWORD '${{ secrets.POSTGRES_PASSWORD }}';"
+            # cria o banco api
+            sudo -u postgres psql -c "CREATE DATABASE api;"
           EOF
 
   deploy-mongo:
@@ -239,18 +42,93 @@ jobs:
         run: |
           echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
           chmod 400 academy-key.pem
-      - name: Atualizar MongoDB
+
+      - name: Instalar e configurar MongoDB na EC2
         run: |
-          ssh -tt -i academy-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
-            docker pull mongo:6.0
-            docker stop mongodb || true
-            docker rm mongodb   || true
-            docker run -d \
-              --restart=always \
-              --name mongodb \
-              -p 27017:27017 \
-              -e MONGO_INITDB_ROOT_USERNAME=admin \
-              -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
-              mongo:6.0
+          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
+            sudo apt update
+            sudo apt install -y mongodb
+            sudo systemctl enable mongodb
+            sudo systemctl start mongodb
+            # opcional: criar usuário admin conforme seu padrão
+          EOF
+
+  deploy-mqtt:
+    name: Deploy Mosquitto
+    runs-on: ubuntu-latest
+    needs: deploy-mongo
+    steps:
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Instalar e configurar Mosquitto na EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
+            sudo apt update
+            sudo apt install -y mosquitto
+            sudo systemctl enable mosquitto
+            sudo systemctl restart mosquitto
+          EOF
+
+  deploy-backend:
+    name: Deploy Backend (3 instâncias)
+    runs-on: ubuntu-latest
+    needs: [deploy-postgres, deploy-mongo, deploy-mqtt]
+    strategy:
+      matrix:
+        INSTANCE_IP: [${{ secrets.EC2_BACKEND_IP_1 }}, ${{ secrets.EC2_BACKEND_IP_2 }}, ${{ secrets.EC2_BACKEND_IP_3 }}]
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
+          chmod 400 academy-key.pem
+
+      - name: Sincronizar código via rsync
+        run: |
+          rsync -av --delete --exclude='.git' -e "ssh -o StrictHostKeyChecking=no -i academy-key.pem" \
+            ./ ubuntu@${{ matrix.INSTANCE_IP }}:/home/ubuntu/app
+
+      - name: Instalar dependências e rodar FastAPI
+        run: |
+          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ matrix.INSTANCE_IP }} << 'EOF'
+            # Instala Python e venv
+            sudo apt update
+            sudo apt install -y python3 python3-venv python3-pip
+
+            cd /home/ubuntu/app
+
+            # Cria e ativa virtualenv
+            python3 -m venv venv
+            source venv/bin/activate
+
+            # Instala dependências
+            if [ -f requirements.txt ]; then
+              pip install -r requirements.txt
+            else
+              pip install fastapi uvicorn sqlalchemy psycopg2-binary
+            fi
+
+            # Ajusta .env a partir do template
+            if [ -f .env.sample ]; then
+              cp .env.sample .env
+            fi
+            # Substitui variáveis no .env
+            sed -i "s|DATABASE_URL=.*|DATABASE_URL='${{ secrets.DATABASE_URL }}'|" .env
+            sed -i "s|MONGO_URI=.*|MONGO_URI='${{ secrets.MONGO_URI }}'|" .env
+            sed -i "s|MQTT_BROKER=.*|MQTT_BROKER='${{ secrets.MQTT_BROKER }}'|" .env
+            sed -i "s|SECRET_KEY=.*|SECRET_KEY='${{ secrets.SECRET_KEY }}'|" .env
+            sed -i "s|ACCESS_TOKEN_EXPIRE_MINUTES=.*|ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES|" .env
+
+            # Para instâncias anteriores do Uvicorn
+            pkill -f "uvicorn main:app" || true
+
+            # Roda o servidor em background
+            nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload > uvicorn.log 2>&1 &
+
             exit
           EOF
