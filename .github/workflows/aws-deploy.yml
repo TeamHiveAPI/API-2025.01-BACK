@@ -25,8 +25,16 @@ jobs:
             sudo apt install -y postgresql postgresql-contrib
             sudo systemctl enable postgresql
             sudo systemctl start postgresql
+
+            # Ajusta senha do usuário postgres
             sudo -u postgres psql -c "ALTER USER postgres PASSWORD '${{ secrets.POSTGRES_PASSWORD }}';"
-            sudo -u postgres psql -c "CREATE DATABASE api;"
+
+            # Cria o banco "api" somente se ainda não existir
+            sudo -u postgres psql -lqt \
+              | cut -d \| -f 1 \
+              | grep -qw api \
+              || sudo -u postgres psql -c "CREATE DATABASE api;"
+
           EOF
 
   deploy-mongo:
