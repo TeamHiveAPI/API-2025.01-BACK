@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 from models import Parametro, Estacao, EstacaoParametro
 from schemas.parametro import ParametroCreate, ParametroResponse, ParametroUpdate
@@ -18,7 +19,7 @@ async def create_parametro(
     try:
         new_parametro = Parametro(**parametro.dict())
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.nome == new_parametro.nome)
+            select(Parametro).filter(Parametro.nome == new_parametro.nome)
         )
         db_parametro = result.scalar_one_or_none()
         if db_parametro:
@@ -36,24 +37,28 @@ async def list_all_parametros(
     db: AsyncSession = Depends(get_async_db),
 ) -> List[ParametroResponse]:
     try:
-        result = await db.execute(db.query(Parametro))
+        result = await db.execute(select(Parametro))
         db_parametros = result.scalars().all()
         if not db_parametros:
             return []
         parametros = []
         for db_parametro in db_parametros:
+            # Buscar todas as estações relacionadas ao parâmetro
             result = await db.execute(
-                db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id)
+                select(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id)
             )
-            estacao_parametro = result.scalar_one_or_none()
-            estacao_nome = None
-            if estacao_parametro:
-                result = await db.execute(
-                    db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id)
-                )
-                estacao = result.scalar_one_or_none()
-                if estacao:
-                    estacao_nome = estacao.nome
+            estacao_parametros = result.scalars().all()
+            estacao_nomes = []
+            if estacao_parametros:
+                for estacao_parametro in estacao_parametros:
+                    result = await db.execute(
+                        select(Estacao).filter(Estacao.id == estacao_parametro.estacao_id)
+                    )
+                    estacao = result.scalar_one_or_none()
+                    if estacao:
+                        estacao_nomes.append(estacao.nome)
+            # Se quiser manter compatibilidade com o schema atual, pega só o primeiro nome
+            estacao_nome = estacao_nomes[0] if estacao_nomes else None
             parametro = ParametroResponse(
                 **db_parametro.__dict__,
                 estacao_nome=estacao_nome
@@ -71,7 +76,7 @@ async def get_parametro_by_id(
 ) -> ParametroResponse:
     try:
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.id == parametro_id)
+            select(Parametro).filter(Parametro.id == parametro_id)
         )
         db_parametro = result.scalar_one_or_none()
         if not db_parametro:
@@ -79,13 +84,13 @@ async def get_parametro_by_id(
         
         # Busca o nome da estação
         result = await db.execute(
-            db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id)
+            select(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id)
         )
         estacao_parametro = result.scalar_one_or_none()
         estacao_nome = None
         if estacao_parametro:
             result = await db.execute(
-                db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id)
+                select(Estacao).filter(Estacao.id == estacao_parametro.estacao_id)
             )
             estacao = result.scalar_one_or_none()
             if estacao:
@@ -107,7 +112,7 @@ async def update_parametro(
 ) -> dict:
     try:
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.id == parametro_id)
+            select(Parametro).filter(Parametro.id == parametro_id)
         )
         db_parametro = result.scalar_one_or_none()
         if not db_parametro:
@@ -115,7 +120,7 @@ async def update_parametro(
         
         if parametro.nome is not None:
             result = await db.execute(
-                db.query(Parametro).filter(Parametro.nome == parametro.nome)
+                select(Parametro).filter(Parametro.nome == parametro.nome)
             )
             db_parametro_by_nome = result.scalar_one_or_none()
             if db_parametro_by_nome and db_parametro_by_nome.id != parametro_id:
@@ -137,7 +142,7 @@ async def delete_parametro(
 ) -> dict:
     try:
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.id == parametro_id)
+            select(Parametro).filter(Parametro.id == parametro_id)
         )
         db_parametro = result.scalar_one_or_none()
         if not db_parametro:

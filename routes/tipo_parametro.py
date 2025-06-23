@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 from models import TipoParametro
 from schemas.tipo_parametro import (
@@ -21,7 +22,7 @@ async def create_tipo_parametro(
     try:
         new_tipo_parametro = TipoParametro(**tipo_parametro.dict())
         result = await db.execute(
-            db.query(TipoParametro).filter(TipoParametro.nome == new_tipo_parametro.nome)
+            select(TipoParametro).filter(TipoParametro.nome == new_tipo_parametro.nome)
         )
         db_tipo_parametro = result.scalar_one_or_none()
         if db_tipo_parametro:
@@ -41,7 +42,7 @@ async def list_all_tipo_parametros(
 ) -> list[TipoParametroResponse]:
     tipo_parametros = []
     try:
-        result = await db.execute(db.query(TipoParametro))
+        result = await db.execute(select(TipoParametro))
         db_tipo_parametros = result.scalars().all()
         for db_tipo_parametro in db_tipo_parametros:
             tipo_parametros.append(TipoParametroResponse.from_orm(db_tipo_parametro))
@@ -57,7 +58,7 @@ async def get_tipo_parametro_by_id(
 ) -> TipoParametroResponse:
     try:
         result = await db.execute(
-            db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
+            select(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
         )
         db_tipo_parametro = result.scalar_one_or_none()
         if not db_tipo_parametro:
@@ -75,7 +76,7 @@ async def update_tipo_parametro(
 ) -> dict:
     try:
         result = await db.execute(
-            db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
+            select(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
         )
         db_tipo_parametro = result.scalar_one_or_none()
         if not db_tipo_parametro:
@@ -83,7 +84,7 @@ async def update_tipo_parametro(
         
         if tipo_parametro.nome is not None:
             result = await db.execute(
-                db.query(TipoParametro).filter(TipoParametro.nome == tipo_parametro.nome)
+                select(TipoParametro).filter(TipoParametro.nome == tipo_parametro.nome)
             )
             db_tipo_parametro_by_nome = result.scalar_one_or_none()
             if db_tipo_parametro_by_nome:
@@ -105,7 +106,7 @@ async def delete_tipo_parametro(
 ) -> dict:
     try:
         result = await db.execute(
-            db.query(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
+            select(TipoParametro).filter(TipoParametro.id == tipo_parametro_id)
         )
         db_tipo_parametro = result.scalar_one_or_none()
         if not db_tipo_parametro:
@@ -114,5 +115,5 @@ async def delete_tipo_parametro(
         await db.commit()
         return {"message": "Tipo de parâmetro deletado com sucesso"}
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

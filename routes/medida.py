@@ -2,6 +2,7 @@
 import logging
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 # Importar os modelos necessários
 from models import Medida, Estacao, Parametro, AlertaDefinido, Alerta
@@ -27,7 +28,7 @@ if not logger.handlers:
 
 async def check_and_create_alertas(db: AsyncSession, medida: Medida, estacao: Estacao, parametro: Parametro):
     result = await db.execute(
-        db.query(AlertaDefinido).filter(
+        select(AlertaDefinido).filter(
             AlertaDefinido.estacao_id == medida.estacao_id,
             AlertaDefinido.parametro_id == medida.parametro_id
         )
@@ -36,7 +37,7 @@ async def check_and_create_alertas(db: AsyncSession, medida: Medida, estacao: Es
 
     for alerta_def in alertas_definidos:
         result = await db.execute(
-            db.query(Alerta).filter(
+            select(Alerta).filter(
                 Alerta.alerta_definido_id == alerta_def.id,
                 Alerta.tempoFim.is_(None)
             )
@@ -86,14 +87,14 @@ async def check_and_create_alertas(db: AsyncSession, medida: Medida, estacao: Es
 async def create_medida(medida: MedidaCreate, db: AsyncSession = Depends(get_async_db)):
     try:
         result = await db.execute(
-            db.query(Estacao).filter(Estacao.id == medida.estacao_id)
+            select(Estacao).filter(Estacao.id == medida.estacao_id)
         )
         estacao = result.scalar_one_or_none()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
 
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.id == medida.parametro_id)
+            select(Parametro).filter(Parametro.id == medida.parametro_id)
         )
         parametro = result.scalar_one_or_none()
         if not parametro:
@@ -128,7 +129,7 @@ async def create_medida(medida: MedidaCreate, db: AsyncSession = Depends(get_asy
 @router.get("/", response_model=List[MedidaResponse])
 async def read_medidas(db: AsyncSession = Depends(get_async_db)):
     try:
-        result = await db.execute(db.query(Medida))
+        result = await db.execute(select(Medida))
         medidas = result.scalars().all()
         return medidas
     except Exception as e:
@@ -138,7 +139,7 @@ async def read_medidas(db: AsyncSession = Depends(get_async_db)):
 async def read_medida(medida_id: int, db: AsyncSession = Depends(get_async_db)):
     try:
         result = await db.execute(
-            db.query(Medida).filter(Medida.id == medida_id)
+            select(Medida).filter(Medida.id == medida_id)
         )
         medida = result.scalar_one_or_none()
         if not medida:
@@ -151,7 +152,7 @@ async def read_medida(medida_id: int, db: AsyncSession = Depends(get_async_db)):
 async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession = Depends(get_async_db)):
     try:
         result = await db.execute(
-            db.query(Medida).filter(Medida.id == medida_id)
+            select(Medida).filter(Medida.id == medida_id)
         )
         db_medida = result.scalar_one_or_none()
         if not db_medida:
@@ -160,7 +161,7 @@ async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession =
         # Se estação_id foi fornecido, verifica se existe
         if medida.estacao_id is not None:
             result = await db.execute(
-                db.query(Estacao).filter(Estacao.id == medida.estacao_id)
+                select(Estacao).filter(Estacao.id == medida.estacao_id)
             )
             estacao = result.scalar_one_or_none()
             if not estacao:
@@ -169,7 +170,7 @@ async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession =
         # Se parametro_id foi fornecido, verifica se existe
         if medida.parametro_id is not None:
             result = await db.execute(
-                db.query(Parametro).filter(Parametro.id == medida.parametro_id)
+                select(Parametro).filter(Parametro.id == medida.parametro_id)
             )
             parametro = result.scalar_one_or_none()
             if not parametro:
@@ -180,10 +181,6 @@ async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession =
         for key, value in update_data.items():
             setattr(db_medida, key, value)
 
-        # **Nota**: Atualizar uma medida geralmente NÃO dispara novos alertas.
-        # Se você precisar dessa lógica (o que é incomum), você teria que
-        # chamar check_and_create_alertas aqui também, após atualizar o valor.
-
         await db.commit()
         await db.refresh(db_medida)
         return db_medida
@@ -191,7 +188,7 @@ async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession =
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @router.post("/lote", response_model=List[MedidaResponse])
 async def create_medidas_lote(
     medidas: List[MedidaCreate] = Body(...),
@@ -200,14 +197,14 @@ async def create_medidas_lote(
     criadas = []
     for medida in medidas:
         result = await db.execute(
-            db.query(Estacao).filter(Estacao.id == medida.estacao_id)
+            select(Estacao).filter(Estacao.id == medida.estacao_id)
         )
         estacao = result.scalar_one_or_none()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
 
         result = await db.execute(
-            db.query(Parametro).filter(Parametro.id == medida.parametro_id)
+            select(Parametro).filter(Parametro.id == medida.parametro_id)
         )
         parametro = result.scalar_one_or_none()
         if not parametro:
@@ -232,14 +229,11 @@ async def create_medidas_lote(
 async def delete_medida(medida_id: int, db: AsyncSession = Depends(get_async_db)):
     try:
         result = await db.execute(
-            db.query(Medida).filter(Medida.id == medida_id)
+            select(Medida).filter(Medida.id == medida_id)
         )
         db_medida = result.scalar_one_or_none()
         if not db_medida:
             raise HTTPException(status_code=404, detail="Medida não encontrada")
-
-        # **Nota**: Deletar uma medida também geralmente NÃO afeta alertas existentes.
-        # Alertas são registros históricos de quando uma condição FOI violada.
 
         await db.delete(db_medida)
         await db.commit()

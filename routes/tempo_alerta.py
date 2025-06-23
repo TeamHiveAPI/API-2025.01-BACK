@@ -5,7 +5,7 @@ from models import Alerta, AlertaDefinido, Estacao, Parametro, TipoParametro
 from schemas.alerta import AlertaCreate, AlertaUpdate
 from schemas.tempo_alerta import TempoAlertaResponse
 from typing import List
-from sqlalchemy import func, case
+from sqlalchemy import func, case, select
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -19,21 +19,21 @@ router = APIRouter(prefix="/tempo-em-alerta-por-estacao", tags=["tempo em alerta
 @router.get("/", response_model=List[TempoAlertaResponse])
 async def list_tempos_alerta(db: AsyncSession = Depends(get_async_db)):
     # Adiciona logs para debug
-    result = await db.execute(db.query(Alerta))
+    result = await db.execute(select(Alerta))
     alertas = result.scalars().all()
     print(f"Total de alertas: {len(alertas)}")
     
-    result = await db.execute(db.query(AlertaDefinido))
+    result = await db.execute(select(AlertaDefinido))
     alertas_definidos = result.scalars().all()
     print(f"Total de alertas definidos: {len(alertas_definidos)}")
     
-    result = await db.execute(db.query(Estacao))
+    result = await db.execute(select(Estacao))
     estacoes = result.scalars().all()
     print(f"Total de estações: {len(estacoes)}")
 
     # Query modificada para calcular o tempo corretamente
     result = await db.execute(
-        db.query(
+        select(
             Estacao.nome.label('estacao'),
             func.sum(
                 case(
@@ -76,7 +76,7 @@ async def list_tempos_alerta(db: AsyncSession = Depends(get_async_db)):
 @router.get("/total-por-tipo", response_model=List[TotalAlertaTipoResponse])
 async def list_total_alertas_por_tipo(db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
-        db.query(
+        select(
             TipoParametro.nome.label('tipo_alerta'),
             func.count(Alerta.id).label('total_alertas')
         ).join(

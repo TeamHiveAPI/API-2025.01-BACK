@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 from models import Alerta
 from typing import List
@@ -26,7 +27,7 @@ async def create_alerta(
 @router.get("/{alerta_id}", response_model=AlertaResponse)
 async def get_alerta(alerta_id: int, db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
-        db.query(Alerta).filter(Alerta.id == alerta_id)
+        select(Alerta).filter(Alerta.id == alerta_id)
     )
     db_alerta = result.scalar_one_or_none()
     if not db_alerta:
@@ -42,7 +43,7 @@ async def update_alerta(
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     result = await db.execute(
-        db.query(Alerta).filter(Alerta.id == alerta_id)
+        select(Alerta).filter(Alerta.id == alerta_id)
     )
     db_alerta = result.scalar_one_or_none()
     if not db_alerta:
@@ -63,7 +64,7 @@ async def delete_alerta(
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     result = await db.execute(
-        db.query(Alerta).filter(Alerta.id == alerta_id)
+        select(Alerta).filter(Alerta.id == alerta_id)
     )
     db_alerta = result.scalar_one_or_none()
     if not db_alerta:
@@ -76,7 +77,7 @@ async def delete_alerta(
 # Listar todos os alertas
 @router.get("/", response_model=list[AlertaResponse])
 async def list_alertas(db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(db.query(Alerta))
+    result = await db.execute(select(Alerta))
     alertas = result.scalars().all()
     return [
         AlertaResponse(
@@ -98,8 +99,7 @@ async def list_alertas(db: AsyncSession = Depends(get_async_db)):
 @router.get("/passados", response_model=List[AlertaResponse])
 async def list_alertas_passados(db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
-        db.query(Alerta)
-        .filter(Alerta.tempoFim != None)
+        select(Alerta).filter(Alerta.tempoFim != None)
     )
     alertas_passados = result.scalars().all()
 
@@ -123,8 +123,7 @@ async def list_alertas_passados(db: AsyncSession = Depends(get_async_db)):
 @router.get("/mais-recente", response_model=AlertaResponse)
 async def get_alerta_mais_recente(db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
-        db.query(Alerta)
-        .order_by(Alerta.data_hora.desc())
+        select(Alerta).order_by(Alerta.data_hora.desc())
     )
     alerta = result.scalar_one_or_none()
     if not alerta:

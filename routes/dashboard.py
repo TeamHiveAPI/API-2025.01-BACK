@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from database import get_async_db
 from models import Estacao, Parametro, AlertaDefinido, Usuario
 
@@ -9,7 +10,6 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/contagem-entidades", response_model=dict)
 async def dashboard(db: AsyncSession = Depends(get_async_db)) -> dict:
     try:
-        from sqlalchemy import select, func
         result = await db.execute(select(func.count()).select_from(Estacao))
         num_estacoes = result.scalar()
 

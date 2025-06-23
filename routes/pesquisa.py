@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 from models import AlertaDefinido, Estacao, Parametro, Usuario, Alerta
 import spacy
@@ -35,29 +36,29 @@ def interpretar_entrada(query: str):
 
 
 async def buscar_estacoes_por_nome(db: AsyncSession, termo: str):
-    result = await db.execute(db.query(Estacao).filter(Estacao.nome.ilike(f"%{termo}%")))
+    result = await db.execute(select(Estacao).filter(Estacao.nome.ilike(f"%{termo}%")))
     return result.scalars().all()
 
 async def buscar_sensores_por_nome(db: AsyncSession, termo: str):
-    result = await db.execute(db.query(Parametro).filter(Parametro.nome.ilike(f"%{termo}%")))
+    result = await db.execute(select(Parametro).filter(Parametro.nome.ilike(f"%{termo}%")))
     return result.scalars().all()
 
 async def buscar_usuarios_por_nome(db: AsyncSession, termo: str):
-    result = await db.execute(db.query(Usuario).filter(Usuario.nome.ilike(f"%{termo}%")))
+    result = await db.execute(select(Usuario).filter(Usuario.nome.ilike(f"%{termo}%")))
     return result.scalars().all()
 
 async def buscar_alertas_por_titulo(db: AsyncSession, termo: str):
     termo = termo.lower()
 
-    result = await db.execute(db.query(AlertaDefinido))
+    result = await db.execute(select(AlertaDefinido))
     alertas = result.scalars().all()
 
-    result = await db.execute(db.query(Parametro))
+    result = await db.execute(select(Parametro))
     parametros_map = {
         p.id: p for p in result.scalars().all()
     }
 
-    result = await db.execute(db.query(Estacao))
+    result = await db.execute(select(Estacao))
     estacoes_map = {
         e.id: e for e in result.scalars().all()
     }

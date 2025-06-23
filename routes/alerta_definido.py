@@ -1,6 +1,7 @@
 # routers/alertas_definidos.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from database import get_async_db
 from models import AlertaDefinido, Estacao, Parametro, EstacaoParametro
 from schemas.alerta_definido import AlertaDefinidoCreate, AlertaDefinidoResponse, AlertaDefinidoUpdate
@@ -18,21 +19,21 @@ async def create_alerta_definido(
 ):
     # Verifica se a estação existe
     result = await db.execute(
-        db.query(Estacao).filter(Estacao.id == alerta_definido.estacao_id)
+        select(Estacao).filter(Estacao.id == alerta_definido.estacao_id)
     )
     db_estacao = result.scalar_one_or_none()
     if not db_estacao:
         raise HTTPException(status_code=404, detail="Estação não encontrada")
     # Verifica se o sensor existe
     result = await db.execute(
-        db.query(Parametro).filter(Parametro.id == alerta_definido.parametro_id)
+        select(Parametro).filter(Parametro.id == alerta_definido.parametro_id)
     )
     db_parametro = result.scalar_one_or_none()
     if not db_parametro:
         raise HTTPException(status_code=404, detail="Sensor (parâmetro) não encontrado")
     # Verifica se o sensor está vinculado à estação
     result = await db.execute(
-        db.query(EstacaoParametro).filter(
+        select(EstacaoParametro).filter(
             EstacaoParametro.estacao_id == alerta_definido.estacao_id,
             EstacaoParametro.parametro_id == alerta_definido.parametro_id
         )
@@ -50,14 +51,14 @@ async def create_alerta_definido(
 # Listar todos os alertas definidos
 @router.get("/", response_model=list[AlertaDefinidoResponse])
 async def list_alertas_definidos(db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(db.query(AlertaDefinido))
+    result = await db.execute(select(AlertaDefinido))
     return result.scalars().all()
 
 # Listar alerta definido específico por ID
 @router.get("/{alerta_definido_id}", response_model=AlertaDefinidoResponse)
 async def get_alerta_definido(alerta_definido_id: int, db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
-        db.query(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
+        select(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
     )
     db_alerta_definido = result.scalar_one_or_none()
     if not db_alerta_definido:
@@ -73,7 +74,7 @@ async def update_alerta_definido(
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     result = await db.execute(
-        db.query(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
+        select(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
     )
     db_alerta_definido = result.scalar_one_or_none()
     if not db_alerta_definido:
@@ -84,21 +85,21 @@ async def update_alerta_definido(
     parametro_id = alerta_definido.parametro_id if alerta_definido.parametro_id is not None else db_alerta_definido.parametro_id
 
     result = await db.execute(
-        db.query(Estacao).filter(Estacao.id == estacao_id)
+        select(Estacao).filter(Estacao.id == estacao_id)
     )
     db_estacao = result.scalar_one_or_none()
     if not db_estacao:
         raise HTTPException(status_code=404, detail="Estação não encontrada")
 
     result = await db.execute(
-        db.query(Parametro).filter(Parametro.id == parametro_id)
+        select(Parametro).filter(Parametro.id == parametro_id)
     )
     db_parametro = result.scalar_one_or_none()
     if not db_parametro:
         raise HTTPException(status_code=404, detail="Sensor (parâmetro) não encontrado")
 
     result = await db.execute(
-        db.query(EstacaoParametro).filter(
+        select(EstacaoParametro).filter(
             EstacaoParametro.estacao_id == estacao_id,
             EstacaoParametro.parametro_id == parametro_id
         )
@@ -122,7 +123,7 @@ async def delete_alerta_definido(
     current_user: UsuarioModel = Depends(get_current_user),
 ):
     result = await db.execute(
-        db.query(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
+        select(AlertaDefinido).filter(AlertaDefinido.id == alerta_definido_id)
     )
     db_alerta_definido = result.scalar_one_or_none()
     if not db_alerta_definido:
