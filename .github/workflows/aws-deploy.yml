@@ -1,4 +1,4 @@
-name: 🚀 Deploy AWS EC2 Instances (Sem Docker)
+name: 🚀 Deploy Backend AWS EC2
 
 on:
   push:
@@ -9,94 +9,9 @@ env:
   ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
 jobs:
-  deploy-postgres:
-    name: Deploy PostgreSQL
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configurar SSH key
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Instalar e configurar PostgreSQL na EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_POSTGRES_IP }} << 'EOF'
-            sudo apt update
-            sudo apt install -y postgresql postgresql-contrib
-            sudo systemctl enable postgresql
-            sudo systemctl start postgresql
-
-            # Ajusta senha do usuário postgres
-            sudo -u postgres psql -c "ALTER USER postgres PASSWORD '${{ secrets.POSTGRES_PASSWORD }}';"
-
-            # Cria o banco "api" somente se ainda não existir
-            sudo -u postgres psql -lqt \
-              | cut -d \| -f 1 \
-              | grep -qw api \
-              || sudo -u postgres psql -c "CREATE DATABASE api;"
-
-          EOF
-
-  deploy-mongo:
-    name: Deploy MongoDB
-    runs-on: ubuntu-latest
-    needs: deploy-postgres
-    steps:
-      - name: Configurar SSH key
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Instalar e configurar MongoDB na EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_MONGO_IP }} << 'EOF'
-            # 1) Instala pré-requisitos
-            sudo apt-get update
-            sudo apt-get install -y gnupg curl  :contentReference[oaicite:0]{index=0}
-
-            # 2) Baixa e converte a chave GPG
-            curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc \
-              | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor  :contentReference[oaicite:1]{index=1}
-
-            # 3) Adiciona o repositório oficial (Jammy/Focal/Bionic)
-            CODENAME=$(lsb_release -sc)
-            echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] \
-            https://repo.mongodb.org/apt/ubuntu \$CODENAME/mongodb-org/6.0 multiverse" \
-              | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list  :contentReference[oaicite:2]{index=2}
-
-            # 4) Atualiza índices e instala o pacote mongodb-org
-            sudo apt-get update  :contentReference[oaicite:3]{index=3}
-            sudo apt-get install -y mongodb-org  :contentReference[oaicite:4]{index=4}
-
-            # 5) Habilita e inicia o serviço mongod
-            sudo systemctl enable mongod
-            sudo systemctl start mongod
-          EOF
-
-
-  deploy-mqtt:
-    name: Deploy Mosquitto
-    runs-on: ubuntu-latest
-    needs: deploy-mongo
-    steps:
-      - name: Configurar SSH key
-        run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
-
-      - name: Instalar e configurar Mosquitto na EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_MQTT_IP }} << 'EOF'
-            sudo apt update
-            sudo apt install -y mosquitto
-            sudo systemctl enable mosquitto
-            sudo systemctl restart mosquitto
-          EOF
-
-  deploy-backend-1:
+  deploy-backend:
     name: Deploy Backend (Instância 1)
     runs-on: ubuntu-latest
-    needs: [deploy-postgres, deploy-mongo, deploy-mqtt]
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -111,35 +26,29 @@ jobs:
           rsync -av --delete --exclude='.git' -e "ssh -o StrictHostKeyChecking=no -i academy-key.pem" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
 
-      - name: Instalar dependências e rodar FastAPI
+      - name: Instalar dependências e reiniciar serviço
         run: |
           ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
-            sudo apt update
-            sudo apt install -y python3 python3-venv python3-pip
-
             cd /home/ubuntu/app
 
-            python3 -m venv venv
+            # Se for venv
+            if [ ! -d venv ]; then
+              sudo apt update
+              sudo apt install -y python3 python3-venv python3-pip
+              python3 -m venv venv
+            fi
             source venv/bin/activate
 
+            # Atualiza dependências
             if [ -f requirements.txt ]; then
               pip install -r requirements.txt
-            else
-              pip install fastapi uvicorn sqlalchemy psycopg2-binary
             fi
 
-            if [ -f .env.sample ]; then
-              cp .env.sample .env
-            fi
-
-            sed -i "s|DATABASE_URL=.*|DATABASE_URL='${{ secrets.DATABASE_URL }}'|" .env
-            sed -i "s|MONGO_URI=.*|MONGO_URI='${{ secrets.MONGO_URI }}'|" .env
-            sed -i "s|MQTT_BROKER=.*|MQTT_BROKER='${{ secrets.MQTT_BROKER }}'|" .env
-            sed -i "s|SECRET_KEY=.*|SECRET_KEY='${{ secrets.SECRET_KEY }}'|" .env
+            # Atualiza .env (opcional, se precisar)
             sed -i "s|ACCESS_TOKEN_EXPIRE_MINUTES=.*|ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES|" .env
 
+            # Reinicia o FastAPI
             pkill -f "uvicorn main:app" || true
-
             nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload > uvicorn.log 2>&1 &
 
             exit
