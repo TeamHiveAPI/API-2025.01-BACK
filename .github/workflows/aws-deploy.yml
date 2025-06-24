@@ -21,7 +21,7 @@ jobs:
 
       - name: Rsync code to EC2
         run: |
-          rsync -av --delete --exclude='.git' -e "ssh -o StrictHostKeyChecking=no -i academy-key.pem" \
+          rsync -av --delete --exclude='.git' -e "ssh -o StrictHostKeyChecking=no -i api4.pem" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
 
       - name: SSH Build & Run Docker on EC2
