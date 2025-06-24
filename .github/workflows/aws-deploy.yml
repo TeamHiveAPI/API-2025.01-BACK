@@ -24,7 +24,7 @@ jobs:
           rsync -av --delete --exclude='.git' -e "ssh -o StrictHostKeyChecking=no -i academy-key.pem" \
             ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
 
-      - name: SSH: Build & Run Docker on EC2
+      - name: SSH Build & Run Docker on EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
             set -e
