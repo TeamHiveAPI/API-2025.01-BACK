@@ -40,7 +40,7 @@ jobs:
             ENV
 
             # ── 2) Build Docker image locally
-            docker build -t backend-image:latest .
+           docker build -t teamhive-backend:latest .
 
             # ── 3) Stop & remove old container if exists
             docker stop backend-container || true
@@ -51,5 +51,5 @@ jobs:
               --name backend-container \
               -p 8000:8000 \
               --env-file /home/ubuntu/app/.env \
-              backend-image:latest
+              teamhive-backend:latest
           EOF
