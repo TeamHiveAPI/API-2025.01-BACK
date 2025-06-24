@@ -16,8 +16,8 @@ jobs:
 
       - name: Setup SSH key
         run: |
-          echo "${{ secrets.ACADEMY_KEY_PEM }}" > academy-key.pem
-          chmod 400 academy-key.pem
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > api4.pem
+          chmod 400 api4.pem
 
       - name: Rsync code to EC2
         run: |
