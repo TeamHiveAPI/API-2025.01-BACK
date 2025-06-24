@@ -26,7 +26,7 @@ jobs:
 
       - name: SSH Build & Run Docker on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i academy-key.pem ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i api4.pem ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
             set -e
             cd /home/ubuntu/app
 
