@@ -1,0 +1,61 @@
+name: 🚀 Deploy Backend to AWS EC2 (sem Docker)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-to-ec2:
+    name: Deploy Backend on EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          echo "${{ secrets.ACADEMY_KEY_PEM }}" > api4.pem
+          chmod 400 api4.pem
+
+      - name: Rsync code to EC2
+        run: |
+          rsync -av --delete --exclude='.git' \
+            -e "ssh -o StrictHostKeyChecking=no -i api4.pem" \
+            ./ ubuntu@${{ secrets.EC2_BACKEND_IP_1 }}:/home/ubuntu/app
+
+      - name: SSH Install & Restart Backend
+        run: |
+          ssh -o StrictHostKeyChecking=no -i api4.pem ubuntu@${{ secrets.EC2_BACKEND_IP_1 }} << 'EOF'
+            set -e
+            cd /home/ubuntu/app
+
+            # 1) Gera o .env
+            cat > .env <<ENV
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            MQTT_BROKER=${{ secrets.MQTT_BROKER }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ACCESS_TOKEN_EXPIRE_MINUTES=30
+            ENV
+
+            # 2) Prepara/atualiza venv
+            if [ ! -d venv ]; then
+              sudo apt-get update
+              sudo apt-get install -y python3 python3-venv python3-pip
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+
+            # 3) Instala dependências
+            if [ -f requirements.txt ]; then
+              pip install --no-cache-dir --upgrade -r requirements.txt
+            fi
+
+            # 4) Reinicia o FastAPI
+            pkill -f "uvicorn main:app" || true
+            nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 \
+              > uvicorn.log 2>&1 &
+
+          EOF
