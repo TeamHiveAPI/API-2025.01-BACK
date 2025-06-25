@@ -15,7 +15,7 @@ class MedidaResponse(MedidaBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         json_encoders = {
             datetime: lambda v: v.timestamp()  # Converte para timestamp ao serializar
         }
