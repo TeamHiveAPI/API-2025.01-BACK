@@ -1,13 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Alerta, AlertaDefinido, Estacao
+from models import Alerta, AlertaDefinido, Estacao, Parametro, TipoParametro
 from schemas.alerta import AlertaCreate, AlertaUpdate
 from schemas.tempo_alerta import TempoAlertaResponse
 from typing import List
 from sqlalchemy import func, case
+from pydantic import BaseModel
 
 from datetime import datetime
+
+class TotalAlertaTipoResponse(BaseModel):
+    tipo_alerta: str
+    total_alertas: int
 
 router = APIRouter(prefix="/tempo-em-alerta-por-estacao", tags=["tempo em alerta por estação"])
 
@@ -57,4 +62,30 @@ def list_tempos_alerta(db: Session = Depends(get_db)):
     return [
         TempoAlertaResponse(estacao=estacao, horasAlerta=float(horas_alerta_total) if horas_alerta_total else 0, qtdAlertas=qtd_alertas)
         for estacao, horas_alerta_total, qtd_alertas in resultados_corrigidos
+    ]
+
+
+    # Quantidade de alertas por tipo
+
+@router.get("/total-por-tipo", response_model=List[TotalAlertaTipoResponse])
+def list_total_alertas_por_tipo(db: Session = Depends(get_db)):
+    resultados = db.query(
+        TipoParametro.nome.label('tipo_alerta'),
+        func.count(Alerta.id).label('total_alertas')
+    ).join(
+        AlertaDefinido, Alerta.alerta_definido_id == AlertaDefinido.id
+    ).join(
+        Parametro, AlertaDefinido.parametro_id == Parametro.id
+    ).join(
+        TipoParametro, Parametro.tipo_parametro_id == TipoParametro.id
+    ).group_by(
+        TipoParametro.nome
+    ).all()
+
+    return [
+        TotalAlertaTipoResponse(
+            tipo_alerta=tipo,
+            total_alertas=total
+        )
+        for tipo, total in resultados
     ]

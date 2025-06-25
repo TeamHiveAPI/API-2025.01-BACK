@@ -1,18 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Usuario
-from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioUpdate, UsuarioPublicResponse
-from core.security import get_current_user, get_password_hash, require_user_nivel
 from models import Usuario as UsuarioModel
-
-from datetime import timedelta
+from schemas.usuario import UsuarioCreateInput, UsuarioResponse, UsuarioPublicResponse, UsuarioUpdate
+from core.security import get_current_user, get_password_hash, create_access_token
 from core.config import settings
-from core.security import create_access_token
 from schemas.token import Token
 
 router = APIRouter(prefix="/usuarios", tags=["usuários"])
+
 @router.post("/", response_model=Token)
 def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_db)):
     usuario_dict = usuario_input.dict()
@@ -20,7 +17,7 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
     usuario_dict["data_criacao"] = datetime.now()
     usuario_dict["senha"] = get_password_hash(usuario_dict["senha"])
 
-    db_usuario = Usuario(**usuario_dict)
+    db_usuario = UsuarioModel(**usuario_dict)
     db.add(db_usuario)
     db.commit()
     db.refresh(db_usuario)
@@ -48,8 +45,13 @@ def create_usuario(usuario_input: UsuarioCreateInput, db: Session = Depends(get_
 def list_usuarios(
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
+    page: int = Query(1, ge=1),
 ):
-    db_usuarios = db.query(Usuario).all()
+    page_size = 5
+    skip = (page - 1) * page_size
+
+    usuarios_query = db.query(UsuarioModel).offset(skip).limit(page_size).all()
+
     return [
         UsuarioPublicResponse(
             id=usuario.id,
@@ -58,7 +60,7 @@ def list_usuarios(
             nivel_acesso=usuario.nivel_acesso,
             data_criacao=usuario.data_criacao
         )
-        for usuario in db_usuarios
+        for usuario in usuarios_query
     ]
 
 @router.get("/me", response_model=UsuarioPublicResponse)
@@ -78,7 +80,7 @@ def get_usuario(
     usuario_id: int, db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return UsuarioPublicResponse(
@@ -95,7 +97,7 @@ def update_usuario(
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ):
-    db_usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.id == usuario_id).first()
     if not db_usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     
