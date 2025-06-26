@@ -19,7 +19,6 @@ class UsuarioResponse(UsuarioCreate):
     id: int
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 class UsuarioPublicResponse(BaseModel):

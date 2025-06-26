@@ -14,7 +14,7 @@ class AlertaDefinidoResponse(AlertaDefinidoCreate):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AlertaDefinidoUpdate(BaseModel):
     estacao_id: Optional[int] = None

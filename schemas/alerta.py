@@ -20,7 +20,7 @@ class AlertaResponse(AlertaCreate):
     expandido: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Modelo para atualização de um alerta
 class AlertaUpdate(BaseModel):

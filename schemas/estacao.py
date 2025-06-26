@@ -28,7 +28,7 @@ class EstacaoResponse(BaseModel):
     sensores: Optional[List[SensoresRelacionadosAEstacao]] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class EstacaoCreate(BaseModel):
     
