@@ -4,8 +4,8 @@ from sqlalchemy.orm import relationship
 from database import Base
 import enum
 import uuid
+from datetime import datetime
 
-# Enums
 class StatusEstacao(enum.Enum):
     ativa = "ativa"
     inativa = "inativa"
@@ -14,7 +14,6 @@ class StatusAlerta(enum.Enum):
     ativo = "ativo"
     resolvido = "resolvido"
 
-# Tabela: estacao
 class Estacao(Base):
     __tablename__ = "estacao"
     id = Column(Integer, primary_key=True, index=True)
@@ -30,22 +29,22 @@ class Estacao(Base):
     data_instalacao = Column(Date)
     status = Column(Enum(StatusEstacao))
 
-    # Relacionamento com sensores (parâmetros)
     parametros = relationship(
         "Parametro",
         secondary="estacao_parametros",
         back_populates="estacoes"
     )
+    alertas_definidos_rel = relationship("AlertaDefinido", back_populates="estacao_rel")
 
-# Tabela: tipo_parametros
+
 class TipoParametro(Base):
     __tablename__ = "tipo_parametros"
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(50), index=True)
     descricao = Column(String)
-    json = Column(String(20))
+    json = Column(String(20)) 
+    parametros = relationship("Parametro", back_populates="tipo_parametro_rel")
 
-# Tabela: parametros (sensores)
 class Parametro(Base):
     __tablename__ = "parametros"
     id = Column(Integer, primary_key=True, index=True)
@@ -57,22 +56,23 @@ class Parametro(Base):
     offset = Column(Float)
     tipo_parametro_id = Column(Integer, ForeignKey("tipo_parametros.id"))
     
+    tipo_parametro_rel = relationship("TipoParametro", back_populates="parametros")
 
-    # Relacionamento com estações
     estacoes = relationship(
         "Estacao",
         secondary="estacao_parametros",
         back_populates="parametros"
     )
+    alertas_definidos_rel = relationship("AlertaDefinido", back_populates="parametro_rel")
 
-# Tabela associativa para vincular estações e parâmetros
+
 class EstacaoParametro(Base):
     __tablename__ = "estacao_parametros"
     id = Column(Integer, primary_key=True, index=True)
     estacao_id = Column(Integer, ForeignKey("estacao.id"))
     parametro_id = Column(Integer, ForeignKey("parametros.id"))
 
-# Tabela: alertas_definidos
+
 class AlertaDefinido(Base):
     __tablename__ = "alertas_definidos"
     id = Column(Integer, primary_key=True, index=True)
@@ -83,7 +83,9 @@ class AlertaDefinido(Base):
     mensagem = Column(String)
     ativo = Column(Boolean, default=True)
 
-# Tabela: alertas
+    estacao_rel = relationship("Estacao", back_populates="alertas_definidos_rel")
+    parametro_rel = relationship("Parametro", back_populates="alertas_definidos_rel")
+
 class Alerta(Base):
     __tablename__ = "alertas"
     id = Column(Integer, primary_key=True, index=True)
@@ -97,7 +99,9 @@ class Alerta(Base):
     tempoFim = Column(DateTime, nullable=True)
     expandido = Column(Boolean, default=False)
 
-# Tabela: medidas
+    alerta_definido_rel = relationship("AlertaDefinido")
+
+
 class Medida(Base):
     __tablename__ = "medidas"
     id = Column(Integer, primary_key=True, index=True)
@@ -106,7 +110,7 @@ class Medida(Base):
     valor = Column(Float)
     data_hora = Column(TIMESTAMP)
 
-# Tabela: usuarios
+
 class Usuario(Base):
     __tablename__ = "usuarios"
     id = Column(Integer, primary_key=True, index=True)
@@ -114,4 +118,19 @@ class Usuario(Base):
     email = Column(String(100), unique=True, index=True)
     senha = Column(String(100))
     nivel_acesso = Column(String(20))
-    data_criacao = Column(DateTime)
+    data_criacao = Column(DateTime, default=datetime.utcnow)
+
+    refresh_tokens = relationship("RefreshToken", back_populates="usuario")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("usuarios.id"))
+    token = Column(String, unique=True, index=True) 
+    expires_at = Column(DateTime)
+    revoked = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    usuario = relationship("Usuario", back_populates="refresh_tokens")

@@ -1,23 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func
 from database import get_db
 from models import Estacao, Parametro, AlertaDefinido, Usuario
 
-# Definição do roteador
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/contagem-entidades", response_model=dict)
-def dashboard(db: Session = Depends(get_db)) -> dict:
+async def dashboard(db: AsyncSession = Depends(get_db)) -> dict:
     try:
-        num_estacoes = db.query(Estacao).count()
+        result_estacoes = await db.execute(select(func.count(Estacao.id)))
+        num_estacoes = result_estacoes.scalar_one()
 
-        num_sensores = db.query(Parametro).count()
+        result_sensores = await db.execute(select(func.count(Parametro.id)))
+        num_sensores = result_sensores.scalar_one()
 
-        num_alertas = db.query(AlertaDefinido).count()
+        result_alertas = await db.execute(select(func.count(AlertaDefinido.id)))
+        num_alertas = result_alertas.scalar_one()
 
-        num_usuarios = db.query(Usuario).count()
+        result_usuarios = await db.execute(select(func.count(Usuario.id)))
+        num_usuarios = result_usuarios.scalar_one()
 
-        # Retorno das informações
         return {
             "numEstacoes": num_estacoes,
             "numSensores": num_sensores,
@@ -25,4 +29,4 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
             "numUsuarios": num_usuarios
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao processar requisição: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao processar requisição: {str(e)}")

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from database import get_db
 from models import Parametro, Estacao, EstacaoParametro
 from schemas.parametro import ParametroCreate, ParametroResponse, ParametroUpdate
@@ -9,39 +10,48 @@ from models import Usuario as UsuarioModel
 
 router = APIRouter(prefix="/parametros", tags=["parâmetros"])
 
-@router.post("/", response_model=int)
-def create_parametro(
+@router.post("/", response_model=int, status_code=status.HTTP_201_CREATED)
+async def create_parametro(
     parametro: ParametroCreate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ) -> int:
     try:
         new_parametro = Parametro(**parametro.dict())
-        db_parametro = db.query(Parametro).filter(Parametro.nome == new_parametro.nome).first()
+        result = await db.execute(select(Parametro).where(Parametro.nome == new_parametro.nome))
+        db_parametro = result.scalar_one_or_none()
         if db_parametro:
             raise HTTPException(status_code=400, detail="Parâmetro já existe.")
         db.add(new_parametro)
-        db.commit()
-        db.refresh(new_parametro)
+        await db.commit()
+        await db.refresh(new_parametro)
         return new_parametro.id
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/", response_model=List[ParametroResponse])
-def list_all_parametros(
-    db: Session = Depends(get_db),
+async def list_all_parametros(
+    db: AsyncSession = Depends(get_db),
 ) -> List[ParametroResponse]:
     try:
-        db_parametros = db.query(Parametro).all()
+        result = await db.execute(select(Parametro))
+        db_parametros = result.scalars().all()
         if not db_parametros:
             return []
         parametros = []
         for db_parametro in db_parametros:
-            estacao_parametro = db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id).first()
+            estacao_parametro_result = await db.execute(
+                select(EstacaoParametro).where(EstacaoParametro.parametro_id == db_parametro.id)
+            )
+            estacao_parametro = estacao_parametro_result.scalar_one_or_none()
+            
             estacao_nome = None
             if estacao_parametro:
-                estacao = db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id).first()
+                estacao_result = await db.execute(
+                    select(Estacao).where(Estacao.id == estacao_parametro.estacao_id)
+                )
+                estacao = estacao_result.scalar_one_or_none()
                 if estacao:
                     estacao_nome = estacao.nome
             parametro = ParametroResponse(
@@ -51,24 +61,30 @@ def list_all_parametros(
             parametros.append(parametro)
         return parametros
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/{parametro_id}", response_model=ParametroResponse)
-def get_parametro_by_id(
+async def get_parametro_by_id(
     parametro_id: int, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ) -> ParametroResponse:
     try:
-        db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
+        result = await db.execute(select(Parametro).where(Parametro.id == parametro_id))
+        db_parametro = result.scalar_one_or_none()
         if not db_parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado.")
+        estacao_parametro_result = await db.execute(
+            select(EstacaoParametro).where(EstacaoParametro.parametro_id == db_parametro.id)
+        )
+        estacao_parametro = estacao_parametro_result.scalar_one_or_none()
         
-        # Busca o nome da estação
-        estacao_parametro = db.query(EstacaoParametro).filter(EstacaoParametro.parametro_id == db_parametro.id).first()
         estacao_nome = None
         if estacao_parametro:
-            estacao = db.query(Estacao).filter(Estacao.id == estacao_parametro.estacao_id).first()
+            estacao_result = await db.execute(
+                select(Estacao).where(Estacao.id == estacao_parametro.estacao_id)
+            )
+            estacao = estacao_result.scalar_one_or_none()
             if estacao:
                 estacao_nome = estacao.nome
 
@@ -77,46 +93,51 @@ def get_parametro_by_id(
             estacao_nome=estacao_nome
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.put("/{parametro_id}", response_model=dict)
-def update_parametro(
+async def update_parametro(
     parametro_id: int, 
     parametro: ParametroUpdate, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ) -> dict:
     try:
-        db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
+        result = await db.execute(select(Parametro).where(Parametro.id == parametro_id))
+        db_parametro = result.scalar_one_or_none()
         if not db_parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado.")
         
         if parametro.nome is not None:
-            db_parametro_by_nome = db.query(Parametro).filter(Parametro.nome == parametro.nome).first()
+            result_by_nome = await db.execute(select(Parametro).where(Parametro.nome == parametro.nome))
+            db_parametro_by_nome = result_by_nome.scalar_one_or_none()
             if db_parametro_by_nome and db_parametro_by_nome.id != parametro_id:
                 raise HTTPException(status_code=400, detail="Parâmetro já existe com este nome.")
 
         for field, value in parametro.dict(exclude_unset=True).items():
             setattr(db_parametro, field, value)
-        db.commit()
+        await db.commit()
+        await db.refresh(db_parametro)
         return {"message": "Parâmetro atualizado com sucesso"}
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.delete("/{parametro_id}", response_model=dict)
-def delete_parametro(
+@router.delete("/{parametro_id}", response_model=dict, status_code=status.HTTP_200_OK)
+async def delete_parametro(
     parametro_id: int, 
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user),
 ) -> dict:
     try:
-        db_parametro = db.query(Parametro).filter(Parametro.id == parametro_id).first()
+        result = await db.execute(select(Parametro).where(Parametro.id == parametro_id))
+        db_parametro = result.scalar_one_or_none()
         if not db_parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado.")
-        db.delete(db_parametro)
-        db.commit()
+        
+        await db.delete(db_parametro)
+        await db.commit()
         return {"message": "Parâmetro deletado com sucesso"}
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

@@ -1,53 +1,63 @@
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy.orm import Session
-from database import get_db
-from models import Usuario
-from datetime import datetime
 from core.security import get_password_hash, create_access_token
-
-TEST_EMAIL = "teste@teste.com"
-TEST_SENHA = "teste"
-TEST_NIVEL = "ADMINISTRADOR"
+from core.config import settings
+from models import Usuario as UsuarioModel
+from database import get_db
 
 class CreateTestUserAndToken:
     def __init__(self):
-        self._user: Usuario | None = None
-        self._token: str | None = None
-        self._db: Session = next(get_db())
+        pass 
 
-    def execute(self) -> None:
-        try:
-            self._create_test_user()
-            self._create_token()
-            print(f"\n🔐 TOKEN FIXO PARA TESTES:\n{self._token}\n")
-        except Exception as e:
-            print(f"❌ Erro ao criar usuário de teste: {e}")
+    async def execute(self):
+        async for db in get_db(): 
+            try:
+                result = await db.execute(select(UsuarioModel).where(UsuarioModel.email == "teste@email.com"))
+                existing_user = result.scalar_one_or_none()
 
-    def _create_test_user(self):
-        self._user = self._db.query(Usuario).filter(Usuario.email == TEST_EMAIL).first()
+                if existing_user:
+                    print("Usuário de teste já existe. Pulando criação.")
+                    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+                    access_token = create_access_token(
+                        data={
+                            "sub": existing_user.email,
+                            "user_nivel": existing_user.nivel_acesso,
+                            "user_id": existing_user.id,
+                        },
+                        expires_delta=access_token_expires
+                    )
+                    print(f"Token de acesso para usuário de teste (existente): {access_token}")
+                    return
+                
+                senha_hash = get_password_hash("teste123")
+                test_user = UsuarioModel(
+                    nome="Usuario Teste",
+                    email="teste@email.com",
+                    senha=senha_hash,
+                    nivel_acesso="ADMINISTRADOR",
+                    data_criacao=datetime.now()
+                )
+                db.add(test_user)
+                await db.commit()
+                await db.refresh(test_user)
 
-        if self._user:
-            print("✅ Usuário de teste já existe.")
-        else:
-            hashed_password = get_password_hash(TEST_SENHA)
-            self._user = Usuario(
-                nome="Usuário de Teste",
-                email=TEST_EMAIL,
-                senha=hashed_password,
-                nivel_acesso=TEST_NIVEL,
-                data_criacao=datetime.now()
-            )
-            self._db.add(self._user)
-            self._db.commit()
-            self._db.refresh(self._user)
-            print("✅ Usuário de teste criado.")
+                access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+                access_token = create_access_token(
+                    data={
+                        "sub": test_user.email,
+                        "user_nivel": test_user.nivel_acesso,
+                        "user_id": test_user.id,
+                    },
+                    expires_delta=access_token_expires
+                )
 
-    def _create_token(self):
-        self._token = create_access_token(
-            data={
-                "sub": self._user.email,
-                "user_nivel": self._user.nivel_acesso,
-                "user_id": self._user.id
-            },
-            expires_delta=timedelta(days=999)
-        )
+                print("Usuário de teste 'teste@email.com' criado com sucesso.")
+                print(f"Token de acesso para usuário de teste: {access_token}")
+
+            except Exception as e:
+                await db.rollback()
+                print(f"Erro ao criar usuário de teste e token: {e}")
+                raise

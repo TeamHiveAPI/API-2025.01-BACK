@@ -1,9 +1,8 @@
-from fastapi import FastAPI # type: ignore
-from fastapi.middleware.cors import CORSMiddleware # type: ignore
+from fastapi import FastAPI 
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import models
-from database import create_tables
-from scripts.create_test_user_and_token import CreateTestUserAndToken
+from database import create_tables_async
+
 from routes import (
     estacoes,
     pesquisa, 
@@ -18,10 +17,13 @@ from routes import (
     tempo_alerta
 )
 
+from scripts.create_test_user_and_token import CreateTestUserAndToken
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    CreateTestUserAndToken().execute()
+    await create_tables_async()
+    
+    await CreateTestUserAndToken().execute()
     yield
 
 app = FastAPI(
@@ -33,19 +35,17 @@ app = FastAPI(
 
 # Configuração do CORS
 origins = [
-    "http://localhost:5173",  # Frontend do React
-    "http://localhost:8001"   #  BD
+    "http://localhost:5173",
+    "http://localhost:8001"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,         # Permite requisições do domínio listado
-    allow_credentials=True,        # Permite envio de cookies, se necessário
-    allow_methods=["*"],           # Permite todos os métodos (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],           # Permite todos os cabeçalhos
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], 
+    allow_headers=["*"], 
 )
-
-# Inclusão das rotas
 
 app.include_router(estacoes.router)
 app.include_router(parametro.router)
@@ -60,5 +60,5 @@ app.include_router(tempo_alerta.router)
 app.include_router(pesquisa.router)
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"message": "API rodando e tabelas criadas no PostgreSQL!"}
