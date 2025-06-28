@@ -1,6 +1,6 @@
 name: Publicar Imagem Docker no Docker Hub
 
-on:
+on: 
   push:
     branches:
       - main
