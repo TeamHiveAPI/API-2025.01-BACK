@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ../Dockerfile
           push: true
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
