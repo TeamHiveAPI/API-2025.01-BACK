@@ -1,4 +1,4 @@
-﻿alembic==1.16.2
+alembic==1.16.2
 annotated-types==0.7.0
 anyio==4.8.0
 asyncpg==0.30.0
