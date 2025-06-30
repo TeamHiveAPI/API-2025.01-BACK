@@ -1,4 +1,4 @@
-FROM python:3.10-slim-buster as builder
+FROM python:3.11-slim-buster as builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 RUN python -m spacy download pt_core_news_sm
 
-FROM python:3.10-slim-buster
+FROM python:3.11-slim-buster
 
 WORKDIR /app
 
@@ -23,7 +23,7 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 COPY . .
