@@ -1,20 +1,18 @@
-# routers/medida.py
 import logging
-from fastapi import APIRouter, Body, Depends, HTTPException
-from sqlalchemy.orm import Session
+import json
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from sqlalchemy.orm import joinedload
 from database import get_db
-# Importar os modelos necessários
 from models import Medida, Estacao, Parametro, AlertaDefinido, Alerta
 from schemas.medida import MedidaCreate, MedidaResponse, MedidaUpdate
 from typing import List
-# Você pode precisar importar datetime se não estiver já globalmente disponível
 from datetime import datetime
 
 router = APIRouter(prefix="/medidas", tags=["medidas"])
 
-# Configura um logger para capturar exceptions
 logger = logging.getLogger("medidas")
-# Se ainda não houver handler, adiciona um básico (stdout) — ajusta nível conforme desejado
 if not logger.handlers:
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
@@ -25,19 +23,24 @@ if not logger.handlers:
     logger.addHandler(ch)
     logger.setLevel(logging.DEBUG)
 
-def check_and_create_alertas(db: Session, medida: Medida, estacao: Estacao, parametro: Parametro):
-    alertas_definidos = db.query(AlertaDefinido).filter(
-        AlertaDefinido.estacao_id == medida.estacao_id,
-        AlertaDefinido.parametro_id == medida.parametro_id
-    ).all()
+async def check_and_create_alertas(db: AsyncSession, medida: Medida, estacao: Estacao, parametro: Parametro):
+    result_alertas_definidos = await db.execute(
+        select(AlertaDefinido).where(
+            AlertaDefinido.estacao_id == medida.estacao_id,
+            AlertaDefinido.parametro_id == medida.parametro_id
+        )
+    )
+    alertas_definidos = result_alertas_definidos.scalars().all()
 
     for alerta_def in alertas_definidos:
-        alertas_ativos = db.query(Alerta).filter(
-            Alerta.alerta_definido_id == alerta_def.id,
-            Alerta.tempoFim.is_(None)
-        ).all()
+        result_alertas_ativos = await db.execute(
+            select(Alerta).where(
+                Alerta.alerta_definido_id == alerta_def.id,
+                Alerta.tempoFim.is_(None)
+            )
+        )
+        alertas_ativos = result_alertas_ativos.scalars().all()
 
-        # checa a condição
         triggered = (
             (alerta_def.condicao == 'menor' and medida.valor < alerta_def.num_condicao) or
             (alerta_def.condicao == 'maior_igual' and medida.valor >= alerta_def.num_condicao) or
@@ -46,7 +49,6 @@ def check_and_create_alertas(db: Session, medida: Medida, estacao: Estacao, para
 
         if triggered:
             if not alertas_ativos:
-                # --- aqui mudamos o título para o padrão curto ---
                 if alerta_def.condicao == 'menor':
                     titulo = f"{parametro.nome} menor que {alerta_def.num_condicao}{parametro.unidade}"
                 elif alerta_def.condicao == 'maior_igual':
@@ -54,8 +56,8 @@ def check_and_create_alertas(db: Session, medida: Medida, estacao: Estacao, para
                 else:  # 'maior_que'
                     titulo = f"{parametro.nome} maior que {alerta_def.num_condicao}{parametro.unidade}"
 
-                # --- e colocamos a mensagem longa em descricaoAlerta ---
                 descricao = alerta_def.mensagem
+                coordenadas_str = json.dumps([estacao.latitude, estacao.longitude])
 
                 novo_alerta = Alerta(
                     alerta_definido_id=alerta_def.id,
@@ -64,26 +66,27 @@ def check_and_create_alertas(db: Session, medida: Medida, estacao: Estacao, para
                     valor_medido=medida.valor,
                     descricaoAlerta=descricao,
                     estacao=estacao.nome,
-                    coordenadas=f"[{estacao.latitude},{estacao.longitude}]",
+                    coordenadas=coordenadas_str,
                     tempoFim=None
                 )
                 db.add(novo_alerta)
 
         else:
-            # fecha todos os ativos
             for a in alertas_ativos:
                 a.tempoFim = medida.data_hora
 
-    db.commit()
+    await db.commit()
 
-@router.post("/", response_model=MedidaResponse)
-def create_medida(medida: MedidaCreate, db: Session = Depends(get_db)):
+@router.post("/", response_model=MedidaResponse, status_code=status.HTTP_201_CREATED)
+async def create_medida(medida: MedidaCreate, db: AsyncSession = Depends(get_db)):
     try:
-        estacao = db.query(Estacao).filter(Estacao.id == medida.estacao_id).first()
+        result_estacao = await db.execute(select(Estacao).where(Estacao.id == medida.estacao_id))
+        estacao = result_estacao.scalar_one_or_none()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")
 
-        parametro = db.query(Parametro).filter(Parametro.id == medida.parametro_id).first()
+        result_parametro = await db.execute(select(Parametro).where(Parametro.id == medida.parametro_id))
+        parametro = result_parametro.scalar_one_or_none()
         if not parametro:
             raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
 
@@ -91,125 +94,114 @@ def create_medida(medida: MedidaCreate, db: Session = Depends(get_db)):
             estacao_id=medida.estacao_id,
             parametro_id=medida.parametro_id,
             valor=medida.valor,
-            data_hora=medida.data_hora or datetime.now()
+            data_hora=medida.data_hora or datetime.utcnow() 
         )
         db.add(db_medida)
+        await db.flush() 
 
-        check_and_create_alertas(db, db_medida, estacao, parametro)
+        await check_and_create_alertas(db, db_medida, estacao, parametro)
 
-        # commit final já feito dentro de check_and_create_alertas()
-        db.refresh(db_medida)
+        await db.refresh(db_medida) 
         return db_medida
 
     except Exception as e:
-        db.rollback()
-        # aqui é impressa a stack trace completa no console
+        await db.rollback()
         logger.exception("Erro ao criar medida/alerta")
-        # mantém o HTTP 500 para o cliente, mas com mensagem genérica
-        raise HTTPException(status_code=500, detail="Erro interno do servidor")
-
-# ... (restante das suas rotas GET, PUT, DELETE para Medida) ...
-
-# Certifique-se de que as rotas GET, PUT, DELETE não precisam dessa lógica
-# (elas operam em medidas existentes, não criam novas que poderiam disparar alertas)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro interno do servidor")
 
 @router.get("/", response_model=List[MedidaResponse])
-def read_medidas(db: Session = Depends(get_db)):
+async def read_medidas(db: AsyncSession = Depends(get_db)):
     try:
-        medidas = db.query(Medida).all()
+        result = await db.execute(select(Medida))
+        medidas = result.scalars().all()
         return medidas
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/{medida_id}", response_model=MedidaResponse)
-def read_medida(medida_id: int, db: Session = Depends(get_db)):
+async def read_medida(medida_id: int, db: AsyncSession = Depends(get_db)):
     try:
-        medida = db.query(Medida).filter(Medida.id == medida_id).first()
+        result = await db.execute(select(Medida).where(Medida.id == medida_id))
+        medida = result.scalar_one_or_none()
         if not medida:
             raise HTTPException(status_code=404, detail="Medida não encontrada")
         return medida
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.put("/{medida_id}", response_model=MedidaResponse)
-def update_medida(medida_id: int, medida: MedidaUpdate, db: Session = Depends(get_db)):
+async def update_medida(medida_id: int, medida: MedidaUpdate, db: AsyncSession = Depends(get_db)):
     try:
-        db_medida = db.query(Medida).filter(Medida.id == medida_id).first()
+        result_medida = await db.execute(select(Medida).where(Medida.id == medida_id))
+        db_medida = result_medida.scalar_one_or_none()
         if not db_medida:
             raise HTTPException(status_code=404, detail="Medida não encontrada")
 
-        # Se estação_id foi fornecido, verifica se existe
         if medida.estacao_id is not None:
-            estacao = db.query(Estacao).filter(Estacao.id == medida.estacao_id).first()
+            result_estacao = await db.execute(select(Estacao).where(Estacao.id == medida.estacao_id))
+            estacao = result_estacao.scalar_one_or_none()
             if not estacao:
                 raise HTTPException(status_code=404, detail="Estação não encontrada")
 
-        # Se parametro_id foi fornecido, verifica se existe
         if medida.parametro_id is not None:
-            parametro = db.query(Parametro).filter(Parametro.id == medida.parametro_id).first()
+            result_parametro = await db.execute(select(Parametro).where(Parametro.id == medida.parametro_id))
+            parametro = result_parametro.scalar_one_or_none()
             if not parametro:
                 raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
 
-        # Atualiza os campos da medida
         update_data = medida.dict(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_medida, key, value)
 
-        # **Nota**: Atualizar uma medida geralmente NÃO dispara novos alertas.
-        # Se você precisar dessa lógica (o que é incomum), você teria que
-        # chamar check_and_create_alertas aqui também, após atualizar o valor.
-
-        db.commit()
-        db.refresh(db_medida)
+        await db.commit()
+        await db.refresh(db_medida)
         return db_medida
 
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@router.post("/lote", response_model=List[MedidaResponse])
-def create_medidas_lote(
+@router.post("/lote", response_model=List[MedidaResponse], status_code=status.HTTP_201_CREATED)
+async def create_medidas_lote( 
     medidas: List[MedidaCreate] = Body(...),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     criadas = []
     for medida in medidas:
-        estacao = db.query(Estacao).filter(Estacao.id == medida.estacao_id).first()
+        result_estacao = await db.execute(select(Estacao).where(Estacao.id == medida.estacao_id))
+        estacao = result_estacao.scalar_one_or_none()
         if not estacao:
-            raise HTTPException(status_code=404, detail="Estação não encontrada")
+            raise HTTPException(status_code=404, detail=f"Estação com ID {medida.estacao_id} não encontrada para a medida de lote.")
 
-        parametro = db.query(Parametro).filter(Parametro.id == medida.parametro_id).first()
+        result_parametro = await db.execute(select(Parametro).where(Parametro.id == medida.parametro_id))
+        parametro = result_parametro.scalar_one_or_none()
         if not parametro:
-            raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
+            raise HTTPException(status_code=404, detail=f"Parâmetro com ID {medida.parametro_id} não encontrado para a medida de lote.")
 
         db_medida = Medida(
             estacao_id=medida.estacao_id,
             parametro_id=medida.parametro_id,
             valor=medida.valor,
-            data_hora=medida.data_hora or datetime.now()
+            data_hora=medida.data_hora or datetime.utcnow()
         )
         db.add(db_medida)
-        db.flush()
+        await db.flush()
 
-        check_and_create_alertas(db, db_medida, estacao, parametro)
+        await check_and_create_alertas(db, db_medida, estacao, parametro)
         criadas.append(db_medida)
-
-    db.commit()
     return criadas
 
-@router.delete("/{medida_id}", status_code=204)
-def delete_medida(medida_id: int, db: Session = Depends(get_db)):
+@router.delete("/{medida_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_medida(medida_id: int, db: AsyncSession = Depends(get_db)):
     try:
-        db_medida = db.query(Medida).filter(Medida.id == medida_id).first()
+        result = await db.execute(select(Medida).where(Medida.id == medida_id))
+        db_medida = result.scalar_one_or_none()
         if not db_medida:
             raise HTTPException(status_code=404, detail="Medida não encontrada")
 
-        # **Nota**: Deletar uma medida também geralmente NÃO afeta alertas existentes.
-        # Alertas são registros históricos de quando uma condição FOI violada.
-
-        db.delete(db_medida)
-        db.commit()
-        return None # Retorno padrão para 204 No Content
+        await db.delete(db_medida)
+        await db.commit()
+        return None
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
