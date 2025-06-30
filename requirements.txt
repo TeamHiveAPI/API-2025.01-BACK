@@ -45,7 +45,7 @@ pydantic==2.10.6
 pydantic-settings==2.9.1
 pydantic_core==2.27.2
 Pygments==2.19.2
-pytest==7.2.2
+pytest==8.2.0
 python-dotenv==1.1.0
 python-jose==3.4.0
 python-multipart==0.0.20
@@ -75,3 +75,4 @@ weasel==0.4.1
 wrapt==1.17.2
 httpx==0.27.2
 pytest-asyncio==0.24.0
+pytest-cov==5.0.0
