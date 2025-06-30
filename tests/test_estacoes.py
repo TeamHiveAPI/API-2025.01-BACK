@@ -1,12 +1,24 @@
+# tests/test_estacoes.py
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from models import Parametro
+from database import Base
 
 def test_create_estacao_success(client: TestClient, db_session: Session):
-    # Given: Configura um sensor no banco simulado
-    sensor = Parametro(id=1, nome="Temperatura", unidade="°C")
-    db_session.add(sensor)
+    parametros_table = Base.metadata.tables["parametros"]
+    db_session.execute(
+        parametros_table.insert().values(
+            id=1,
+            nome="Temperatura",
+            unidade="°C",
+            descricao="",
+            quantidade_casas_decimais=0,
+            fator_conversao=1.0,
+            offset=0.0,
+            tipo_parametro_id=None
+        )
+    )
     db_session.commit()
 
     estacao_data = {
@@ -23,11 +35,11 @@ def test_create_estacao_success(client: TestClient, db_session: Session):
         "sensores": [1]
     }
 
-    # When: Faz a requisição POST
     response = client.post("/estacoes/", json=estacao_data)
 
-    # Then: Verifica a resposta
     assert response.status_code == 200
-    assert response.json()["nome"] == "Estação Central"
-    assert len(response.json()["sensores"]) == 1
-    assert response.json()["sensores"][0]["id"] == 1
+    body = response.json()
+    assert body["nome"] == "Estação Central"
+    assert isinstance(body["sensores"], list)
+    assert len(body["sensores"]) == 1
+    assert body["sensores"][0]["id"] == 1
