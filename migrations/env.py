@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.ext.asyncio import create_async_engine # <-- Importar create_async_engine
 from alembic import context
 import asyncio # <-- Importar asyncio
+from models import Base
 
 # Alembic Config object
 config = context.config

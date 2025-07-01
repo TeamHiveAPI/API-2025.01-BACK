@@ -1,8 +1,8 @@
-"""first_migrations
+"""Adiciona tabela de usuarios e estacoes
 
-Revision ID: 6bb494046640
+Revision ID: 6469940e50e4
 Revises: 
-Create Date: 2025-06-26 10:00:18.937952
+Create Date: 2025-07-01 15:50:37.202851
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '6bb494046640'
+revision: str = '6469940e50e4'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
