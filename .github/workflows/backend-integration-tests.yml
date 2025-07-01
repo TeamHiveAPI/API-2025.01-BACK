@@ -10,16 +10,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # --- DEFINIR VARIÁVEIS DE AMBIENTE NO NÍVEL DO JOB ---
+    # Isso garante que SECRET_KEY e outras variáveis estejam disponíveis
+    # para todas as etapas do job, incluindo quando o Python importa módulos
+    # e inicializa a classe Settings.
+    env:
+      # Use DATABASE_URL para 'api_test' para os testes, conforme o erro indica.
+      # Se seu backend precisa de 'api' para iniciar, você pode sobrescrever
+      # essa variável no passo 'Start backend to create tables' se necessário.
+      DATABASE_URL: postgresql+asyncpg://hiveuser:hive123@localhost:5432/api
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+
     services:
       postgres:
         image: postgres:13
         env:
           POSTGRES_USER: hiveuser
           POSTGRES_PASSWORD: hive123
-          POSTGRES_DB: api
+          POSTGRES_DB: api # Use api_test aqui para o serviço PostgreSQL
         ports:
           - 5432:5432
-        options: --health-cmd "pg_isready -U hiveuser -d api" --health-interval 10s --health-timeout 5s --health-retries 5
+        options: --health-cmd "pg_isready -U hiveuser -d api_test" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout backend code
@@ -47,13 +61,10 @@ jobs:
       - name: Start backend to create tables
         working-directory: backend
         env:
-          # É crucial que todas as variáveis de ambiente que seu backend precisa
-          # para iniciar e se conectar ao DB estejam aqui.
-          DATABASE_URL: postgresql+asyncpg://hiveuser:hive123@localhost:5432/api
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: 30
-          REFRESH_TOKEN_EXPIRE_DAYS: 7
+          # Se o seu backend precisa de um DB diferente para iniciar (ex: 'api' vs 'api_test'),
+          # você pode sobrescrever DATABASE_URL aqui. Caso contrário, ele usará a do job.
+          DATABASE_URL: postgresql+asyncpg://hiveuser:hive123@localhost:5432/api # Exemplo se precisar de 'api' para iniciar
+          # As outras variáveis já vêm do nível do job
         run: |
           # Inicia o Uvicorn em segundo plano
           # E espera um pouco para dar tempo do app iniciar e criar as tabelas
@@ -62,11 +73,5 @@ jobs:
 
       - name: Run backend tests
         working-directory: backend
-        env:
-          # As variáveis de ambiente também precisam estar aqui para os testes.
-          DATABASE_URL: postgresql+asyncpg://hiveuser:hive123@localhost:5432/api
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: 30
-          REFRESH_TOKEN_EXPIRE_DAYS: 7
+        
         run: pytest
