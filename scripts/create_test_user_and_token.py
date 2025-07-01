@@ -1,19 +1,21 @@
 import os
 from datetime import datetime, timedelta
+# Importe timezone se você estiver usando em outro lugar, mas para este caso, utcnow() é suficiente
+# from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
-from core.security import get_password_hash, create_access_token
+from core.security import get_password_hash, create_access_token # Corrigimos create_access_token aqui!
 from core.config import settings
 from models import Usuario as UsuarioModel
 from database import get_db
 
 class CreateTestUserAndToken:
     def __init__(self):
-        pass 
+        pass
 
     async def execute(self):
-        async for db in get_db(): 
+        async for db in get_db():
             try:
                 result = await db.execute(select(UsuarioModel).where(UsuarioModel.email == "teste@email.com"))
                 existing_user = result.scalar_one_or_none()
@@ -31,14 +33,14 @@ class CreateTestUserAndToken:
                     )
                     print(f"Token de acesso para usuário de teste (existente): {access_token}")
                     return
-                
+
                 senha_hash = get_password_hash("teste123")
                 test_user = UsuarioModel(
                     nome="Usuario Teste",
                     email="teste@email.com",
                     senha=senha_hash,
                     nivel_acesso="ADMINISTRADOR",
-                    data_criacao=datetime.now()
+                    data_criacao=datetime.utcnow() # <--- MUDANÇA AQUI!
                 )
                 db.add(test_user)
                 await db.commit()

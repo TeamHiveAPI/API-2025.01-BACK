@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel , ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
@@ -19,8 +19,7 @@ class AlertaResponse(AlertaCreate):
     alertaAtivo: bool
     expandido: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Modelo para atualização de um alerta
 class AlertaUpdate(BaseModel):

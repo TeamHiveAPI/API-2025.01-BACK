@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -18,9 +18,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioResponse(UsuarioCreate):
     id: int
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UsuarioPublicResponse(BaseModel):
     id: int

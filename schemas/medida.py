@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_serializer
 from typing import Optional
 from datetime import datetime
 
@@ -13,12 +13,13 @@ class MedidaCreate(MedidaBase):
 
 class MedidaResponse(MedidaBase):
     id: int
+    model_config = ConfigDict(from_attributes=True) # Substitua class Config por model_config
 
-    class Config:
-        orm_mode = True
-        json_encoders = {
-            datetime: lambda v: v.timestamp()  # Converte para timestamp ao serializar
-        }
+    # Use @field_serializer para serializar campos específicos
+    @field_serializer('data_hora')
+    def serialize_data_hora(self, dt: datetime) -> float: 
+        return dt.timestamp()
+    
 class MedidaUpdate(BaseModel):
     estacao_id: Optional[int] = None
     parametro_id: Optional[int] = None

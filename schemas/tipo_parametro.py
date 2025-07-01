@@ -1,26 +1,23 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class TipoParametroCreate(BaseModel):
     nome: str
     descricao: str
-    json_payload: str = Field(..., alias="json")
+    json: str
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TipoParametroResponse(TipoParametroCreate):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TipoParametroUpdate(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
-    json_payload: Optional[str] = Field(None, alias="json")
+    json: Optional[str] = None
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(from_attributes=True)

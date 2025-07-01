@@ -1,5 +1,5 @@
 import json
-from pydantic import BaseModel
+from pydantic import BaseModel , ConfigDict
 from typing import Optional
 
 class ParametroCreate(BaseModel):
@@ -16,8 +16,7 @@ class ParametroResponse(ParametroCreate):
     id: int
     estacao_nome: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ParametroUpdate(BaseModel):
     nome: Optional[str] = None

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete
+from sqlalchemy.orm import selectinload
 from database import get_db
 from models import Estacao, EstacaoParametro, Parametro
 from schemas.estacao import EstacaoCreate, EstacaoResponse, EstacaoUpdate
@@ -44,11 +45,17 @@ async def create_estacao(
                 db.add(assoc)
             await db.commit()
             
+        # Recarregar a estação com os parâmetros
+        result = await db.execute(
+            select(Estacao).options(selectinload(Estacao.parametros)).where(Estacao.id == db_estacao.id)
+        )
+        db_estacao_with_params = result.scalar_one()
+        
         return EstacaoResponse(
-            id=db_estacao.id,
-            uid=db_estacao.uid,
-            nome=db_estacao.nome,
-            cep=db_estacao.cep,
+            id=db_estacao_with_params.id,
+            uid=db_estacao_with_params.uid,
+            nome=db_estacao_with_params.nome,
+            cep=db_estacao_with_params.cep,
             rua=estacao.rua,
             bairro=estacao.bairro,
             cidade=estacao.cidade,
@@ -63,7 +70,7 @@ async def create_estacao(
                     "nome": sensor.nome,
                     "unidade": sensor.unidade
                 }
-                for sensor in db_estacao.parametros
+                for sensor in db_estacao_with_params.parametros
             ]
         )
     except Exception as e:
@@ -100,27 +107,32 @@ async def update_estacao(
                 db.add(assoc)
             await db.commit()
 
-        await db.refresh(db_estacao)
+        # Recarregar a estação com os parâmetros
+        result = await db.execute(
+            select(Estacao).options(selectinload(Estacao.parametros)).where(Estacao.id == estacao_id)
+        )
+        db_estacao_with_params = result.scalar_one()
+        
         return EstacaoResponse(
-            id=db_estacao.id,
-            uid=db_estacao.uid,
-            nome=db_estacao.nome,
-            cep=db_estacao.cep,
-            rua=db_estacao.rua,
-            bairro=db_estacao.bairro,
-            cidade=db_estacao.cidade,
-            numero=db_estacao.numero,
-            latitude=db_estacao.latitude,
-            longitude=db_estacao.longitude,
-            data_instalacao=db_estacao.data_instalacao,
-            status=db_estacao.status,
+            id=db_estacao_with_params.id,
+            uid=db_estacao_with_params.uid,
+            nome=db_estacao_with_params.nome,
+            cep=db_estacao_with_params.cep,
+            rua=db_estacao_with_params.rua,
+            bairro=db_estacao_with_params.bairro,
+            cidade=db_estacao_with_params.cidade,
+            numero=db_estacao_with_params.numero,
+            latitude=db_estacao_with_params.latitude,
+            longitude=db_estacao_with_params.longitude,
+            data_instalacao=db_estacao_with_params.data_instalacao,
+            status=db_estacao_with_params.status,
             sensores=[
                 {
                     "id": sensor.id,
                     "nome": sensor.nome,
                     "unidade": sensor.unidade
                 }
-                for sensor in db_estacao.parametros
+                for sensor in db_estacao_with_params.parametros
             ]
         )
     except Exception as e:
@@ -130,7 +142,7 @@ async def update_estacao(
 @router.get("/", response_model=List[EstacaoResponse])
 async def read_estacoes(db: AsyncSession = Depends(get_db)):
     try:
-        result = await db.execute(select(Estacao))
+        result = await db.execute(select(Estacao).options(selectinload(Estacao.parametros)))
         estacoes = result.scalars().all()
         
         estacoes_response = []
@@ -186,7 +198,7 @@ async def delete_estacao(
 @router.get("/uid/{uid}", response_model=EstacaoResponse)
 async def read_estacao_by_uid(uid: str, db: AsyncSession = Depends(get_db)):
     try:
-        result = await db.execute(select(Estacao).where(Estacao.uid == uid))
+        result = await db.execute(select(Estacao).options(selectinload(Estacao.parametros)).where(Estacao.uid == uid))
         estacao = result.scalar_one_or_none()
         if not estacao:
             raise HTTPException(status_code=404, detail="Estação não encontrada")

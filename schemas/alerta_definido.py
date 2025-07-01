@@ -1,5 +1,5 @@
 # schemas/alerta_definido.py
-from pydantic import BaseModel
+from pydantic import BaseModel , ConfigDict
 from typing import Optional
 
 class AlertaDefinidoCreate(BaseModel):
@@ -13,8 +13,7 @@ class AlertaDefinidoCreate(BaseModel):
 class AlertaDefinidoResponse(AlertaDefinidoCreate):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AlertaDefinidoUpdate(BaseModel):
     estacao_id: Optional[int] = None

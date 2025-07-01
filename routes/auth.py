@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime # Removendo timezone do import, já que não será mais usado diretamente aqui
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,15 +58,19 @@ async def login(
     )
     hashed_refresh_token = hash_refresh_token(raw_refresh_token)
 
+    # Deletar refresh tokens antigos do usuário
     await db.execute(
         delete(RefreshTokenModel).where(RefreshTokenModel.user_id == user.id)
     )
     
+    # --- CORREÇÃO CRÍTICA AQUI ---
+    # Use datetime.utcnow() para criar datetimes "naive" compatíveis com TIMESTAMP WITHOUT TIME ZONE
     new_refresh_token_db = RefreshTokenModel(
         user_id=user.id,
         token=hashed_refresh_token,
-        expires_at=datetime.now(timezone.utc) + refresh_token_expires,
-        revoked=False
+        expires_at=datetime.utcnow() + refresh_token_expires, # <--- MUDANÇA ESSENCIAL
+        revoked=False,
+        created_at=datetime.utcnow() # <--- Adicione este campo, se o seu modelo RefreshTokenModel o tiver
     )
     db.add(new_refresh_token_db)
     await db.commit()
@@ -115,7 +119,9 @@ async def refresh_token(
             await db.commit()
             raise credentials_exception
 
-        if refresh_token_db.expires_at < datetime.now(timezone.utc):
+        # --- CORREÇÃO AQUI para consistência na comparação ---
+        # Compare com um datetime "naive" para evitar erros
+        if refresh_token_db.expires_at < datetime.utcnow(): 
             refresh_token_db.revoked = True
             await db.commit()
             raise credentials_exception

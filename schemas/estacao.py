@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel , ConfigDict
 from typing import List, Optional
 from datetime import date
 from enum import Enum
@@ -27,8 +27,7 @@ class EstacaoResponse(BaseModel):
     status: StatusEstacao
     sensores: Optional[List[SensoresRelacionadosAEstacao]] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class EstacaoCreate(BaseModel):
     
