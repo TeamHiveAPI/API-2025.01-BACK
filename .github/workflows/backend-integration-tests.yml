@@ -19,11 +19,7 @@ jobs:
           POSTGRES_DB: api
         ports:
           - 5432:5432
-        options: >
-          --health-cmd "pg_isready -U hiveuser -d api"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        options: --health-cmd "pg_isready -U hiveuser -d api" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout backend code
@@ -44,7 +40,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install alembic pytest
-
       - name: Wait for PostgreSQL
         # Este sleep de 10s é uma precaução. O health check do serviço 'postgres' já ajuda a garantir a prontidão.
         run: sleep 10
