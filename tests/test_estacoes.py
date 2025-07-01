@@ -2,24 +2,10 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from database import Base
 
-def test_create_estacao_success(client: TestClient, db_session: Session):
-    parametros_table = Base.metadata.tables["parametros"]
-    db_session.execute(
-        parametros_table.insert().values(
-            id=1,
-            nome="Temperatura",
-            unidade="°C",
-            descricao="",
-            quantidade_casas_decimais=0,
-            fator_conversao=1.0,
-            offset=0.0,
-            tipo_parametro_id=None
-        )
-    )
-    db_session.commit()
+def test_create_estacao_success(client: TestClient):
+    # Este teste agora usa o banco real da aplicação
+    # Assumindo que já existem parâmetros no banco ou serão criados pelos testes de integração
 
     estacao_data = {
         "nome": "Estação Central",
