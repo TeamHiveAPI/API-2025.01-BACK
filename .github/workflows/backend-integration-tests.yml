@@ -39,35 +39,34 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install alembic pytest
+          pip install pytest # Garante pytest instalado
+
       - name: Wait for PostgreSQL
-        # Este sleep de 10s é uma precaução. O health check do serviço 'postgres' já ajuda a garantir a prontidão.
         run: sleep 10
 
-      - name: Run migrations
+      - name: Start backend to create tables
         working-directory: backend
         env:
-          # A DATABASE_URL é crucial para o Alembic conectar.
-          # Use as credenciais e o host/porta do serviço PostgreSQL no GitHub Actions.
+          # É crucial que todas as variáveis de ambiente que seu backend precisa
+          # para iniciar e se conectar ao DB estejam aqui.
           DATABASE_URL: postgresql://hiveuser:hive123@localhost:5432/api
-        run: alembic upgrade head
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          REFRESH_TOKEN_EXPIRE_DAYS: 7
+        run: |
+          # Inicia o Uvicorn em segundo plano
+          # E espera um pouco para dar tempo do app iniciar e criar as tabelas
+          python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 15 # Dê um tempo suficiente para o create_tables_async() rodar
 
       - name: Run backend tests
         working-directory: backend
         env:
-          # Variáveis obrigatórias que precisam ser passadas explicitamente
-          # SECRET_KEY deve ser um segredo do GitHub Actions por segurança!
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          # DATABASE_URL para a aplicação e testes.
+          # As variáveis de ambiente também precisam estar aqui para os testes.
           DATABASE_URL: postgresql://hiveuser:hive123@localhost:5432/api
-
-          # Variáveis com valores padrão no config.py.
-          # Passá-las aqui é opcional, mas garante que os testes usem esses valores exatos
-          # e não dependam dos defaults do código se eles mudarem no futuro.
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
           ALGORITHM: HS256
           ACCESS_TOKEN_EXPIRE_MINUTES: 30
           REFRESH_TOKEN_EXPIRE_DAYS: 7
-
-          # Se você tiver variáveis adicionais que seu config.py lê de .env e que são importantes para testes,
-          # adicione-as aqui também.
         run: pytest
