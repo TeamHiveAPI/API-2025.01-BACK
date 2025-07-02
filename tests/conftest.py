@@ -6,15 +6,34 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import pytest
 from fastapi.testclient import TestClient
+from datetime import timedelta
 
 # Importar a aplicação real
 from main import app
+from core.security import create_access_token
+from core.config import settings
 
 @pytest.fixture
 def client():
     """Fixture que cria um cliente de teste usando o banco real da aplicação"""
     with TestClient(app) as test_client:
         yield test_client
+
+@pytest.fixture
+def auth_headers():
+    """Fixture que retorna headers de autenticação usando usuário de teste"""
+    # Criar token para o usuário de teste que é criado automaticamente
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={
+            "sub": "teste@email.com",
+            "user_nivel": "ADMINISTRADOR",
+            "user_id": 1,  # Assumindo que é o primeiro usuário
+        },
+        expires_delta=access_token_expires
+    )
+    
+    return {"Authorization": f"Bearer {access_token}"}
 
 
 
