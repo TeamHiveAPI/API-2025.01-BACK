@@ -6,7 +6,7 @@ Bem-vindo ao backend da **Weather Station API**! Este projeto foi desenvolvido p
 
 ---
 
-## 📋 Sobre o Projetooi
+## 📋 Sobre o Projeto
 
 Este é o backend da API para o projeto de estações meteorológicas do curso **2025.01**. Ele foi projetado para:
 
