@@ -100,7 +100,7 @@ jobs:
         
     - name: Run unit tests
       env:
-        DATABASE_URL: postgresql://postgres:1234@localhost:5432/api_test
+        DATABASE_URL: postgresql+asyncpg://postgres:1234@localhost:5432/api_test
       run: |
         # Executa apenas testes unitários, excluindo testes de integração
         pytest --cov=. --cov-report=xml --ignore=tests/integration
