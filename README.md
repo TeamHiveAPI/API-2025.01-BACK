@@ -4,6 +4,7 @@
 
 Bem-vindo ao backend da **Weather Station API**! Este projeto foi desenvolvido pela equipe **TeamHiveAPI** para gerenciar dados de estações meteorológicas, incluindo informações de estações, parâmetros, medidas, alertas e usuários. Utilizamos o framework **FastAPI** para criar uma API RESTful eficiente e o **PostgreSQL** como banco de dados relacional.
 
+
 ---
 
 ## 📋 Sobre o Projeto
